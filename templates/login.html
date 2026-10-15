@@ -1,0 +1,96 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iniciar sesión | Control de Asistencia</title>
+</head>
+<body>
+    <h1>Sistema de Control de Asistencia</h1>
+    <h2>Iniciar sesión</h2>
+
+    <p>Selecciona el tipo de acceso que corresponde a tu cuenta.</p>
+
+    <form method="POST" action="{{ url_for('login') }}">
+
+        <fieldset>
+            <legend>Tipo de usuario</legend>
+
+            <label for="rol_coordinador">
+                <input
+                    type="radio"
+                    id="rol_coordinador"
+                    name="rol"
+                    value="coordinador"
+                    required
+                >
+                Coordinador
+            </label>
+
+            <br><br>
+
+            <label for="rol_administrador">
+                <input
+                    type="radio"
+                    id="rol_administrador"
+                    name="rol"
+                    value="administrador"
+                    required
+                >
+                Administrador
+            </label>
+        </fieldset>
+
+        <br>
+
+        <div>
+            <label for="correo">Correo electrónico</label>
+            <br>
+            <input
+                type="email"
+                id="correo"
+                name="correo"
+                placeholder="usuario@empresa.com"
+                autocomplete="username"
+                required
+            >
+        </div>
+
+        <br>
+
+        <div>
+            <label for="contrasena">Contraseña</label>
+            <br>
+            <input
+                type="password"
+                id="contrasena"
+                name="contrasena"
+                placeholder="Ingresa tu contraseña"
+                autocomplete="current-password"
+                required
+            >
+        </div>
+
+        <br>
+
+        {% with mensajes = get_flashed_messages() %}
+    {% if mensajes %}
+        <div role="alert" aria-live="assertive">
+            {% for mensaje in mensajes %}
+                <p>{{ mensaje }}</p>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endwith %}
+
+        <button type="submit">Iniciar sesión</button>
+
+    </form>
+
+    <p>
+        <a href="{{ url_for('inicio') }}">Volver al inicio</a>
+    </p>
+</body>
+</html>
+

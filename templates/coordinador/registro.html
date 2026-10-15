@@ -1,0 +1,35 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coordinador | Sistema de Asistencia</title>
+</head>
+<body>
+    <header>
+        <h1>Área del coordinador</h1>
+        <p>Control operativo de asistencia</p>
+    </header>
+
+    
+<main>
+    <h2>Bienvenido al área administrativa</h2>
+    <p>Sesión iniciada como: {{ correo }}</p>
+
+    <nav aria-label="Menú administrativo">
+        <ul>
+            <li><a href="{{ url_for('personas') }}">Trabajadores y perfiles</a></li>
+            <li><a href="/usuarios">Usuarios y accesos</a></li>
+            <li><a href="/novedades">Novedades</a></li>
+            <li><a href="/reportes">Reportes</a></li>
+        </ul>
+    </nav>
+
+    <form action="{{ url_for('cerrar_sesion') }}" method="POST">
+        <button type="submit">Cerrar sesión</button>
+    </form>
+</main>
+
+</body>
+</html>
