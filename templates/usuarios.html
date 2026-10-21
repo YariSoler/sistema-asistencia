@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Usuarios y accesos | Control de Asistencia</title>
+</head>
+<body>
+    <h1>Usuarios y accesos</h1>
+    <p>Coordinadores y administradores vinculados con una cuenta de Supabase Auth.</p>
+    <p><a href="{{ url_for('dashboard_admin') }}">Volver al panel</a> | <a href="{{ url_for('personas') }}">Gestionar personas</a></p>
+    {% with mensajes = get_flashed_messages() %}
+      {% if mensajes %}<div role="status" aria-live="polite">{% for mensaje in mensajes %}<p>{{ mensaje }}</p>{% endfor %}</div>{% endif %}
+    {% endwith %}
+    {% if usuarios %}
+    <table border="1" cellpadding="8">
+        <thead><tr><th>Nombre</th><th>Identificación</th><th>Cargo</th><th>Perfil</th><th>Correo Auth</th><th>Estado de acceso</th><th>Administrar</th></tr></thead>
+        <tbody>
+        {% for usuario in usuarios %}
+            <tr>
+                <td>{{ usuario.nombre }}</td>
+                <td>{{ usuario.identificacion or 'Sin identificación' }}</td>
+                <td>{{ usuario.cargo or 'Sin cargo' }}</td>
+                <td>{{ usuario.perfil }}</td>
+                <td>{{ usuario.correo }}</td>
+                <td>{{ usuario.estado or 'Sin estado' }}</td>
+                <td>
+                    <a href="{{ url_for('editar_persona', persona_id=usuario.id) }}">Editar datos</a>
+                    {% if usuario.estado == 'activo' %}
+                    <form action="{{ url_for('cambiar_estado_persona', persona_id=usuario.id) }}" method="post" style="display:inline">
+                        <input type="hidden" name="estado" value="inactivo"><button type="submit">Desactivar acceso</button>
+                    </form>
+                    {% else %}
+                    <form action="{{ url_for('cambiar_estado_persona', persona_id=usuario.id) }}" method="post" style="display:inline">
+                        <input type="hidden" name="estado" value="activo"><button type="submit">Activar acceso</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}<p>No hay cuentas vinculadas de coordinadores o administradores.</p>{% endif %}
+</body>
+</html>

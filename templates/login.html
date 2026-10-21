@@ -75,14 +75,14 @@
         <br>
 
         {% with mensajes = get_flashed_messages() %}
-    {% if mensajes %}
-        <div role="alert" aria-live="assertive">
-            {% for mensaje in mensajes %}
-                <p>{{ mensaje }}</p>
-            {% endfor %}
-        </div>
-    {% endif %}
-{% endwith %}
+            {% if mensajes %}
+                <div role="alert" aria-live="assertive">
+                    {% for mensaje in mensajes %}
+                        <p>{{ mensaje }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
 
         <button type="submit">Iniciar sesión</button>
 
