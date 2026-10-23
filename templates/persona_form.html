@@ -12,6 +12,7 @@
       {% if mensajes %}<div role="alert" aria-live="assertive">{% for mensaje in mensajes %}<p>{{ mensaje }}</p>{% endfor %}</div>{% endif %}
     {% endwith %}
     <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div><label for="identificacion">Identificación</label><br>
             <input id="identificacion" name="identificacion" maxlength="80" required value="{{ request.form.get('identificacion', persona.identificacion if persona else '') }}"></div>
         <div><label for="nombre">Nombre completo</label><br>

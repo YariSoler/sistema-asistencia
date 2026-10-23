@@ -13,6 +13,7 @@
     <p>Selecciona el tipo de acceso que corresponde a tu cuenta.</p>
 
     <form method="POST" action="{{ url_for('login') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <fieldset>
             <legend>Tipo de usuario</legend>

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ 'Editar trabajador' if persona else 'Registrar trabajador' }} | Control de Asistencia</title>
+</head>
+<body>
+    <h1>{{ 'Editar registro' if persona else 'Registrar trabajador' }}</h1>
+    <p><a href="{{ url_for('personas') }}">Volver al listado</a></p>
+    {% with mensajes = get_flashed_messages() %}
+      {% if mensajes %}<div role="alert" aria-live="assertive">{% for mensaje in mensajes %}<p>{{ mensaje }}</p>{% endfor %}</div>{% endif %}
+    {% endwith %}
+    <form method="post">
+        <div><label for="identificacion">Identificación</label><br>
+            <input id="identificacion" name="identificacion" maxlength="80" required value="{{ request.form.get('identificacion', persona.identificacion if persona else '') }}"></div>
+        <div><label for="nombre">Nombre completo</label><br>
+            <input id="nombre" name="nombre" maxlength="160" required value="{{ request.form.get('nombre', persona.nombre if persona else '') }}"></div>
+        <div><label for="cargo">Cargo</label><br>
+            <select id="cargo" name="cargo" required {% if persona and persona.auth_user_id %}disabled{% endif %}>
+                {% for cargo in ['SST', 'Operario', 'Coordinador', 'Administrador'] %}
+                    {% set actual = request.form.get('cargo', persona.cargo if persona else 'Operario') %}
+                    <option value="{{ cargo }}" {% if actual == cargo %}selected{% endif %}>{{ cargo }}</option>
+                {% endfor %}
+            </select>
+            {% if persona and persona.auth_user_id %}<input type="hidden" name="cargo" value="{{ persona.cargo }}">{% endif %}
+            <small>Los cargos de coordinador y administrador requieren una cuenta de acceso vinculada.</small>
+        </div>
+        <div><label for="estado">Estado</label><br>
+            {% set estado_actual = request.form.get('estado', persona.estado if persona else 'activo') %}
+            <select id="estado" name="estado" required>
+                <option value="activo" {% if estado_actual == 'activo' %}selected{% endif %}>Activo</option>
+                <option value="inactivo" {% if estado_actual == 'inactivo' %}selected{% endif %}>Inactivo</option>
+            </select>
+        </div>
+        {% if not persona %}
+        <fieldset id="datos-acceso" hidden>
+            <legend>Cuenta de acceso</legend>
+            <p>Este correo y contraseña se enviarán directamente a Supabase Auth desde el servidor. La cuenta quedará confirmada para iniciar sesión; verifica que el correo pertenece a la persona. La contraseña no se guarda en trabajadores ni se muestra de nuevo.</p>
+            <div><label for="correo">Correo electrónico</label><br>
+                <input id="correo" name="correo" type="email" maxlength="254" autocomplete="username" value="{{ request.form.get('correo', '') }}"></div>
+            <div><label for="contrasena">Contraseña inicial</label><br>
+                <input id="contrasena" name="contrasena" type="password" autocomplete="new-password"></div>
+        </fieldset>
+        {% endif %}
+        <p>El perfil se asigna automáticamente según el cargo. SST y Operario no tienen cuenta de inicio de sesión.</p>
+        <button type="submit">{{ 'Guardar cambios' if persona else 'Registrar trabajador' }}</button>
+    </form>
+    {% if not persona %}
+    <script>
+        const cargo = document.getElementById('cargo');
+        const acceso = document.getElementById('datos-acceso');
+        const correo = document.getElementById('correo');
+        const contrasena = document.getElementById('contrasena');
+        function mostrarAcceso() {
+            const requiereCuenta = ['Coordinador', 'Administrador'].includes(cargo.value);
+            acceso.hidden = !requiereCuenta;
+            correo.required = requiereCuenta;
+            contrasena.required = requiereCuenta;
+        }
+        cargo.addEventListener('change', mostrarAcceso);
+        mostrarAcceso();
+    </script>
+    {% endif %}
+</body>
+</html>

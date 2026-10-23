@@ -1,7 +1,17 @@
 
 import os
 import re
+import math
+import uuid
+import secrets
+import hmac
+import hashlib
+import json
+from datetime import datetime, timezone
 import requests
+import io
+import base64
+import qrcode
 
 from flask import (
     Flask,
@@ -11,6 +21,8 @@ from flask import (
     redirect,
     url_for,
     flash,
+    jsonify,
+    abort,
 )
 from dotenv import load_dotenv
 from supabase import create_client
@@ -50,6 +62,39 @@ app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
 
 
+def csrf_token():
+    """Devuelve el token de la sesión y crea uno cuando aún no existe."""
+    token = session.get("_csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["_csrf_token"] = token
+    return token
+
+
+@app.context_processor
+def exponer_csrf_token():
+    return {"csrf_token": csrf_token}
+
+
+@app.before_request
+def proteger_solicitudes_con_csrf():
+    if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+        return None
+
+    esperado = session.get("_csrf_token")
+    recibido = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token")
+    valido = (
+        isinstance(esperado, str)
+        and isinstance(recibido, str)
+        and hmac.compare_digest(esperado, recibido)
+    )
+    if valido:
+        return None
+    if request.path.startswith("/api/") or request.is_json:
+        return jsonify(error="La solicitud no tiene un token CSRF válido. Recarga la página e inténtalo de nuevo."), 400
+    abort(400, description="La solicitud no tiene un token CSRF válido. Recarga la página e inténtalo de nuevo.")
+
+
 # =========================================================
 # 2. FUNCIONES AUXILIARES
 # =========================================================
@@ -60,6 +105,48 @@ CARGOS_PERFIL = {
     "Coordinador": "coordinador",
     "Administrador": "administrador",
 }
+def generar_codigo_qr():
+    """Genera un código QR aleatorio y difícil de adivinar."""
+    return secrets.token_urlsafe(32)
+
+
+def generar_codigo_qr_unico(intentos=5):
+    """Comprueba que el código aleatorio no exista antes de guardarlo."""
+    for _ in range(intentos):
+        codigo = generar_codigo_qr()
+        existentes = (
+            supabase.table("trabajadores")
+            .select("id")
+            .eq("qr", codigo)
+            .limit(1)
+            .execute()
+        ).data
+        if not existentes:
+            return codigo
+    raise RuntimeError("No fue posible generar un código QR único.")
+
+
+def imagen_qr_base64(codigo):
+    """Genera la imagen QR como una cadena Base64 para mostrarla en HTML."""
+    imagen = qrcode.make(codigo)
+    buffer = io.BytesIO()
+    imagen.save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+
+def diagnostico_error_supabase(exc):
+    """Obtiene solo código/mensaje controlado del error para diagnóstico local."""
+    codigo = getattr(exc, "code", None)
+    mensaje = getattr(exc, "message", None)
+    if not isinstance(mensaje, str):
+        mensaje = ""
+    mensaje = re.sub(r"(?i)bearer\s+[A-Za-z0-9._~-]+", "Bearer [REDACTED]", mensaje)
+    mensaje = re.sub(
+        r"(?i)(service[_ -]?role[_ -]?key|api[_ -]?key|password)\s*[:=]\s*\S+",
+        r"\1=[REDACTED]",
+        mensaje,
+    )
+    return codigo or "sin_sqlstate", mensaje[:300]
 
 
 def texto_formulario(campo):
@@ -69,7 +156,7 @@ def texto_formulario(campo):
 def obtener_persona(persona_id):
     resultado = (
         supabase.table("trabajadores")
-        .select("id, nombre, identificacion, cargo, perfil, estado, auth_user_id")
+        .select("id, nombre, identificacion, cargo, perfil, estado, auth_user_id, qr")
         .eq("id", persona_id)
         .limit(1)
         .execute()
@@ -212,6 +299,196 @@ def consultar_perfil(usuario_id):
     return resultado.data
 
 
+def verificar_coordinador_api():
+    """Valida el rol actual contra Supabase y devuelve JSON en caso de rechazo."""
+    if "usuario_id" not in session:
+        return None, (jsonify(error="Inicia sesión para continuar."), 401)
+
+    try:
+        perfiles = consultar_perfil(session["usuario_id"])
+    except Exception as exc:
+        app.logger.warning("Fallo verificando sesión de API (%s).", type(exc).__name__)
+        session.clear()
+        return None, (jsonify(error="No fue posible verificar la sesión."), 503)
+
+    if len(perfiles) != 1:
+        session.clear()
+        return None, (jsonify(error="La sesión no tiene un registro válido."), 401)
+
+    persona = perfiles[0]
+    if (persona.get("perfil") or "").strip().lower() != "coordinador":
+        return None, (jsonify(error="Solo un coordinador puede registrar asistencia y visitas."), 403)
+    if (persona.get("estado") or "").strip().lower() != "activo":
+        session.clear()
+        return None, (jsonify(error="La cuenta está inactiva."), 401)
+
+    session["perfil"] = "coordinador"
+    session["trabajador_id"] = persona["id"]
+    return persona, None
+
+
+def persona_por_qr(valor_qr, permitir_inactivo=False):
+    """Resuelve QRs operativos de trabajadores o coordinadores."""
+    if not isinstance(valor_qr, str) or not valor_qr.strip() or len(valor_qr) > 2048:
+        return None, (jsonify(error="El código QR está vacío o no es válido."), 400)
+
+    try:
+        respuesta = (
+            supabase.table("trabajadores")
+            .select("id, nombre, cargo, perfil, estado, qr")
+            .eq("qr", valor_qr.strip())
+            .limit(2)
+            .execute()
+        )
+    except Exception as exc:
+        app.logger.warning("Fallo consultando QR (%s).", type(exc).__name__)
+        return None, (jsonify(error="No fue posible consultar el trabajador."), 503)
+
+    if not respuesta.data:
+        return None, (jsonify(error="No hay un trabajador asociado a ese QR."), 404)
+    if len(respuesta.data) > 1:
+        return None, (jsonify(error="El QR está asociado a varios registros. Corrige la asignación antes de usarlo."), 409)
+
+    persona = respuesta.data[0]
+    if (persona.get("perfil") or "").strip().lower() not in ("trabajador", "coordinador"):
+        return None, (jsonify(error="Ese QR no pertenece a un perfil operativo autorizado."), 409)
+    if not permitir_inactivo and (persona.get("estado") or "").strip().lower() != "activo":
+        return None, (jsonify(error="El trabajador está inactivo."), 409)
+    return persona, None
+
+
+def persona_por_id_asistencia(valor_id, permitir_inactivo=False):
+    """Resuelve un ID ya seleccionado en el servidor; no autentica al usuario."""
+    try:
+        persona_id = int(valor_id)
+        if persona_id <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        return None, (jsonify(error="La persona seleccionada no es válida."), 400)
+    try:
+        respuesta = (
+            supabase.table("trabajadores")
+            .select("id, nombre, cargo, perfil, estado, qr")
+            .eq("id", persona_id)
+            .limit(2)
+            .execute()
+        )
+    except Exception as exc:
+        app.logger.warning("Fallo consultando persona para asistencia (%s).", type(exc).__name__)
+        return None, (jsonify(error="No fue posible consultar la persona."), 503)
+    if not respuesta.data:
+        return None, (jsonify(error="No se encontró la persona seleccionada."), 404)
+    if len(respuesta.data) > 1:
+        return None, (jsonify(error="El identificador interno no es único."), 409)
+    persona = respuesta.data[0]
+    if (persona.get("perfil") or "").strip().lower() != "trabajador":
+        return None, (jsonify(error="La búsqueda por identificación solo admite trabajadores operativos."), 409)
+    if not permitir_inactivo and (persona.get("estado") or "").strip().lower() != "activo":
+        return None, (jsonify(error="El trabajador está inactivo."), 409)
+    return persona, None
+
+
+def resolver_persona_asistencia(datos, permitir_inactivo=False):
+    if "trabajador_id" in datos:
+        return persona_por_id_asistencia(datos.get("trabajador_id"), permitir_inactivo)
+    return persona_por_qr(datos.get("qr"), permitir_inactivo)
+
+
+def lista_paginada(query, tamano=1000):
+    """Lee todas las páginas de una consulta PostgREST sin ampliar columnas."""
+    filas = []
+    inicio = 0
+    while True:
+        pagina = query.range(inicio, inicio + tamano - 1).execute().data or []
+        filas.extend(pagina)
+        if len(pagina) < tamano:
+            return filas
+        inicio += tamano
+
+
+def validar_evento_offline(datos, tipo, coordinador_id, persona_id=None, cot=None, proyecto=None):
+    """Valida/normaliza el evento y calcula un hash estable del cuerpo autorizado."""
+    try:
+        operacion_id = str(uuid.UUID(str(datos.get("operacion_id", ""))))
+        ocurrio = datetime.fromisoformat(str(datos.get("ocurrio_en", "")).replace("Z", "+00:00"))
+        if ocurrio.tzinfo is None:
+            raise ValueError("timezone required")
+        ocurrio = ocurrio.astimezone(timezone.utc)
+    except (TypeError, ValueError, AttributeError):
+        return None, (jsonify(error="La operación necesita un UUID y una fecha con zona horaria válidos."), 400)
+
+    estado_ubicacion = datos.get("ubicacion_estado")
+    latitud = longitud = precision = None
+    if estado_ubicacion == "obtenida":
+        try:
+            latitud = float(datos.get("latitud"))
+            longitud = float(datos.get("longitud"))
+            precision = float(datos["precision_m"]) if datos.get("precision_m") is not None else None
+        except (TypeError, ValueError, KeyError):
+            return None, (jsonify(error="La ubicación marcada como obtenida no tiene datos válidos."), 400)
+        if (not math.isfinite(latitud) or not math.isfinite(longitud)
+                or latitud < -90 or latitud > 90 or longitud < -180 or longitud > 180
+                or (precision is not None and (not math.isfinite(precision) or precision < 0))):
+            return None, (jsonify(error="Las coordenadas o la precisión GPS están fuera de rango."), 400)
+    elif estado_ubicacion != "no_disponible":
+        return None, (jsonify(error="Indica si la ubicación se obtuvo o no estuvo disponible."), 400)
+
+    canonico = {
+        "tipo": tipo,
+        "coordinador_id": coordinador_id,
+        "persona_id": persona_id,
+        "cot": cot,
+        "proyecto": proyecto,
+        "ocurrio_en": ocurrio.isoformat(),
+        "ubicacion_estado": estado_ubicacion,
+        "latitud": latitud,
+        "longitud": longitud,
+        "precision_m": precision,
+    }
+    payload_hash = hashlib.sha256(
+        json.dumps(canonico, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+    return {
+        "operacion_id": operacion_id,
+        "ocurrio_en": ocurrio.isoformat(),
+        "latitud": latitud,
+        "longitud": longitud,
+        "precision_m": precision,
+        "ubicacion_obtenida": estado_ubicacion == "obtenida",
+        "payload_hash": payload_hash,
+    }, None
+
+
+def buscar_operario_visita_por_identificacion(identificacion):
+    """Busca un operario activo y devuelve solo los datos necesarios para elegirlo."""
+    if not isinstance(identificacion, str):
+        return None, (jsonify(error="Ingresa el número de identificación del operario."), 400)
+    identificacion = identificacion.strip()
+    if not identificacion or len(identificacion) > 80:
+        return None, (jsonify(error="El número de identificación no es válido."), 400)
+    try:
+        resultado = (
+            supabase.table("trabajadores")
+            .select("id, nombre, cargo, perfil, estado")
+            .eq("identificacion", identificacion)
+            .limit(2)
+            .execute()
+        )
+    except Exception as exc:
+        app.logger.warning("Falló la búsqueda del participante de visita (%s).", type(exc).__name__)
+        return None, (jsonify(error="No fue posible buscar al operario ahora."), 503)
+    if not resultado.data:
+        return None, (jsonify(error="No se encontró un operario con esa identificación."), 404)
+    if len(resultado.data) != 1:
+        return None, (jsonify(error="La identificación no es única. Solicita revisión al administrador."), 409)
+    persona = resultado.data[0]
+    if (persona.get("perfil") or "").strip().lower() != "trabajador":
+        return None, (jsonify(error="La identificación no corresponde a un operario."), 409)
+    if (persona.get("estado") or "").strip().lower() != "activo":
+        return None, (jsonify(error="El operario está inactivo."), 409)
+    return {key: persona.get(key) for key in ("id", "nombre", "cargo")}, None
+
+
 # =========================================================
 # 3. PÁGINA INICIAL
 # =========================================================
@@ -267,24 +544,8 @@ def login():
         return redirect(url_for("login"))
 
     if respuesta.status_code != 200:
-        try:
-            cuerpo = respuesta.json()
-            detalle = (
-                cuerpo.get("msg")
-                or cuerpo.get("message")
-                or cuerpo.get("error_description")
-                or cuerpo.get("error")
-                or "Error de autenticación no especificado."
-            )
-        except (ValueError, AttributeError):
-            detalle = "Respuesta no disponible."
-
-        # No registrar contraseñas ni tokens.
-        app.logger.warning(
-            "Error de autenticación Supabase: HTTP %s - %s",
-            respuesta.status_code,
-            detalle,
-        )
+        # El proveedor puede incluir datos sensibles en el cuerpo de error.
+        app.logger.warning("Error de autenticación Supabase (HTTP %s).", respuesta.status_code)
 
         flash(
             "No se pudo iniciar sesión. "
@@ -424,6 +685,415 @@ def registro_coordinador():
     )
 
 
+@app.route("/service-worker.js")
+def service_worker():
+    response = app.send_static_file("service-worker.js")
+    response.headers["Service-Worker-Allowed"] = "/"
+    response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
+# =========================================================
+# 8. REGISTRO DE ASISTENCIA Y VISITAS (ACT06)
+# =========================================================
+
+@app.route("/api/asistencia/qr", methods=["POST"])
+def consultar_qr_asistencia():
+    coordinador, error = verificar_coordinador_api()
+    if error:
+        return error
+
+    datos = request.get_json(silent=True)
+    if not isinstance(datos, dict):
+        return jsonify(
+            error="El cuerpo de la solicitud debe ser un objeto JSON válido."
+        ), 400
+
+    persona, error = persona_por_qr(
+        datos.get("qr"), permitir_inactivo=True
+    )
+    if error:
+        return error
+
+    perfil_persona = (persona.get("perfil") or "").strip().lower()
+    if perfil_persona == "coordinador" and persona.get("id") != coordinador.get("id"):
+        return jsonify(error="Un coordinador solo puede registrar su propia asistencia con su QR."), 403
+
+    try:
+        abiertos = (
+            supabase.table("registros_asistencia")
+            .select("id, cot, proyecto, fecha_entrada")
+            .eq("trabajador_id", persona["id"])
+            .is_("fecha_salida", "null")
+            .limit(1)
+            .execute()
+        ).data
+    except Exception as exc:
+        app.logger.warning("No se pudo consultar el turno abierto (%s).", type(exc).__name__)
+        return jsonify(error="No se pudo consultar asistencia. Confirma que la migración ACT06 esté aplicada."), 503
+
+    abierto = abiertos[0] if abiertos else None
+    if (persona.get("estado") or "").strip().lower() != "activo" and not abierto:
+        return jsonify(error="El trabajador está inactivo y no tiene una entrada abierta."), 409
+    return jsonify(
+        trabajador={"id": persona["id"], "nombre": persona["nombre"], "cargo": persona["cargo"], "perfil": perfil_persona},
+        accion="salida" if abierto else "entrada",
+        registro_abierto=abierto,
+    )
+
+
+@app.route("/api/asistencia/csrf", methods=["GET"])
+def obtener_csrf_asistencia():
+    _, error = verificar_coordinador_api()
+    if error:
+        return error
+    response = jsonify(csrf_token=csrf_token())
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.route("/api/asistencia/buscar-identificacion", methods=["POST"])
+def buscar_trabajador_por_identificacion():
+    _, error = verificar_coordinador_api()
+    if error:
+        return error
+    datos = request.get_json(silent=True)
+    if not isinstance(datos, dict):
+        return jsonify(error="El cuerpo de la solicitud debe ser un objeto JSON válido."), 400
+    identificacion = datos.get("identificacion")
+    if not isinstance(identificacion, str):
+        return jsonify(error="Ingresa el número de identificación."), 400
+    identificacion = identificacion.strip()
+    if not identificacion or len(identificacion) > 80:
+        return jsonify(error="El número de identificación no es válido."), 400
+    try:
+        resultado = (
+            supabase.table("trabajadores")
+            .select("id, nombre, cargo, perfil, estado")
+            .eq("identificacion", identificacion)
+            .limit(2)
+            .execute()
+        )
+    except Exception as exc:
+        app.logger.warning("Falló la búsqueda por identificación (%s).", type(exc).__name__)
+        return jsonify(error="No fue posible buscar el trabajador ahora."), 503
+    if not resultado.data:
+        return jsonify(error="No se encontró un trabajador con esa identificación."), 404
+    if len(resultado.data) != 1:
+        return jsonify(error="La identificación no es única. Solicita revisión al administrador."), 409
+    persona = resultado.data[0]
+    if (persona.get("perfil") or "").strip().lower() != "trabajador":
+        return jsonify(error="La identificación no corresponde a un trabajador operativo."), 409
+    if (persona.get("estado") or "").strip().lower() != "activo":
+        return jsonify(error="El trabajador está inactivo y no puede iniciar una entrada."), 409
+    try:
+        abiertos = (
+            supabase.table("registros_asistencia")
+            .select("id, cot, proyecto, fecha_entrada")
+            .eq("trabajador_id", persona["id"])
+            .is_("fecha_salida", "null")
+            .limit(1)
+            .execute()
+        ).data
+    except Exception as exc:
+        app.logger.warning("Falló la consulta del turno durante búsqueda (%s).", type(exc).__name__)
+        return jsonify(error="No fue posible consultar el turno del trabajador."), 503
+    # No retorna la cédula ni datos de Auth; la búsqueda no da acceso al sistema.
+    return jsonify(
+        trabajador={"id": persona["id"], "nombre": persona["nombre"], "cargo": persona.get("cargo")},
+        accion="salida" if abiertos else "entrada",
+        registro_abierto=abiertos[0] if abiertos else None,
+    )
+
+
+@app.route("/api/asistencia/directorio-offline", methods=["GET"])
+def descargar_directorio_offline():
+    coordinador, error = verificar_coordinador_api()
+    if error:
+        return error
+    try:
+        personas = lista_paginada(
+            supabase.table("trabajadores")
+            .select("id, identificacion, nombre, cargo, perfil, estado, qr")
+            .eq("perfil", "trabajador")
+            .eq("estado", "activo")
+            .order("id")
+        )
+        abiertos = lista_paginada(
+            supabase.table("registros_asistencia")
+            .select("trabajador_id, cot, proyecto, fecha_entrada")
+            .is_("fecha_salida", "null")
+        )
+        cuenta_coordinador = (
+            supabase.table("trabajadores")
+            .select("id, nombre, qr, perfil, estado")
+            .eq("id", coordinador["id"])
+            .limit(1)
+            .execute()
+            .data
+        )
+    except Exception as exc:
+        app.logger.warning("Falló la descarga de directorio de campo (%s).", type(exc).__name__)
+        return jsonify(error="No se pudo actualizar el directorio offline."), 503
+    abiertos_por_persona = {fila["trabajador_id"]: fila for fila in abiertos}
+    directorio = []
+    for persona in personas:
+        # No se descarga correo, auth_user_id, dirección ni otra información.
+        directorio.append({
+            "id": persona["id"],
+            "identificacion": persona.get("identificacion"),
+            "nombre": persona.get("nombre"),
+            "cargo": persona.get("cargo"),
+            "qr": persona.get("qr"),
+            "registro_abierto": abiertos_por_persona.get(persona["id"]),
+        })
+    coordinador_local = cuenta_coordinador[0] if cuenta_coordinador else {}
+    coordinador_local["registro_abierto"] = abiertos_por_persona.get(coordinador_local.get("id"))
+    response = jsonify(
+        actualizado_en=datetime.now(timezone.utc).isoformat(),
+        trabajadores=directorio,
+        coordinador={
+            "id": coordinador_local.get("id"), "nombre": coordinador_local.get("nombre"),
+            "qr": coordinador_local.get("qr"), "registro_abierto": coordinador_local.get("registro_abierto"),
+        },
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.route("/api/asistencia/entrada", methods=["POST"])
+def registrar_entrada_asistencia():
+    coordinador, error = verificar_coordinador_api()
+    if error:
+        return error
+
+    datos = request.get_json(silent=True)
+    if not isinstance(datos, dict):
+        return jsonify(error="El cuerpo de la solicitud debe ser un objeto JSON válido."), 400
+    persona, error = resolver_persona_asistencia(datos)
+    if error:
+        return error
+    if persona.get("perfil") == "coordinador" and persona.get("id") != coordinador.get("id"):
+        return jsonify(error="Un coordinador solo puede registrar su propia asistencia con su QR."), 403
+
+    cot = datos.get("cot")
+    proyecto = datos.get("proyecto")
+    if not isinstance(cot, str) or not cot.strip() or not isinstance(proyecto, str) or not proyecto.strip():
+        return jsonify(error="Ingresa el COT y el proyecto antes de registrar la entrada."), 400
+    cot, proyecto = cot.strip(), proyecto.strip()
+    evento, error = validar_evento_offline(
+        datos, "entrada", coordinador["id"], persona["id"], cot, proyecto
+    )
+    if error:
+        return error
+
+    try:
+        respuesta = supabase.rpc(
+            "registrar_entrada_asistencia_offline",
+            {
+                "p_trabajador_id": persona["id"],
+                "p_coordinador_id": coordinador["id"],
+                "p_cot": cot,
+                "p_proyecto": proyecto,
+                "p_ocurrio_en": evento["ocurrio_en"],
+                "p_latitud": evento["latitud"],
+                "p_longitud": evento["longitud"],
+                "p_precision_m": evento["precision_m"],
+                "p_ubicacion_obtenida": evento["ubicacion_obtenida"],
+                "p_operacion_id": evento["operacion_id"],
+                "p_payload_hash": evento["payload_hash"],
+            },
+        ).execute()
+    except Exception as exc:
+        codigo = getattr(exc, "code", "")
+        if codigo == "23505" or "23505" in str(exc):
+            return jsonify(error="El trabajador ya tiene una entrada abierta. Registra primero su salida."), 409
+        if "PERSONA_NO_AUTORIZADA_PARA_ENTRADA" in str(exc):
+            return jsonify(error="El trabajador ya no está activo o no está autorizado para iniciar una entrada. La operación queda pendiente de revisión."), 409
+        sqlstate, mensaje = diagnostico_error_supabase(exc)
+        app.logger.warning(
+            "Falló registrar_entrada_asistencia; tipo=%s SQLSTATE=%s mensaje=%r",
+            type(exc).__name__, sqlstate, mensaje,
+        )
+        return jsonify(error="No se pudo guardar la entrada. Confirma que la migración ACT06 esté aplicada."), 503
+
+    return jsonify(mensaje="Entrada guardada.", registro=respuesta.data, operacion_id=evento["operacion_id"]), 201
+
+
+@app.route("/api/asistencia/salida", methods=["POST"])
+def registrar_salida_asistencia():
+    coordinador, error = verificar_coordinador_api()
+    if error:
+        return error
+
+    datos = request.get_json(silent=True)
+    if not isinstance(datos, dict):
+        return jsonify(error="El cuerpo de la solicitud debe ser un objeto JSON válido."), 400
+    persona, error = resolver_persona_asistencia(datos, permitir_inactivo=True)
+    if error:
+        return error
+    if persona.get("perfil") == "coordinador" and persona.get("id") != coordinador.get("id"):
+        return jsonify(error="Un coordinador solo puede cerrar su propia asistencia con su QR."), 403
+    evento, error = validar_evento_offline(datos, "salida", coordinador["id"], persona["id"])
+    if error:
+        return error
+
+    try:
+        respuesta = supabase.rpc(
+            "registrar_salida_asistencia_offline",
+            {
+                "p_trabajador_id": persona["id"], "p_coordinador_id": coordinador["id"],
+                "p_ocurrio_en": evento["ocurrio_en"], "p_latitud": evento["latitud"],
+                "p_longitud": evento["longitud"], "p_precision_m": evento["precision_m"],
+                "p_ubicacion_obtenida": evento["ubicacion_obtenida"],
+                "p_operacion_id": evento["operacion_id"], "p_payload_hash": evento["payload_hash"],
+            },
+        ).execute()
+    except Exception as exc:
+        if "NO_HAY_ENTRADA_ABIERTA" in str(exc):
+            return jsonify(error="El trabajador no tiene una entrada abierta para cerrar."), 409
+        if "SALIDA_ANTERIOR_A_ENTRADA" in str(exc):
+            return jsonify(error="La hora de salida es anterior a la entrada. La operación queda pendiente de revisión."), 409
+        app.logger.warning("No se pudo registrar la salida (%s).", type(exc).__name__)
+        return jsonify(error="No se pudo guardar la salida. Confirma que la migración ACT06 esté aplicada."), 503
+
+    return jsonify(mensaje="Salida guardada.", registro=respuesta.data, operacion_id=evento["operacion_id"]), 200
+
+
+@app.route("/api/visitas-tecnicas/verificar-coordinador", methods=["POST"])
+def verificar_qr_coordinador_visita():
+    coordinador, error = verificar_coordinador_api()
+    if error:
+        return error
+    datos = request.get_json(silent=True)
+    if not isinstance(datos, dict):
+        return jsonify(error="El cuerpo de la solicitud debe ser un objeto JSON válido."), 400
+    persona, error = persona_por_qr(datos.get("qr"))
+    if error:
+        return error
+    if persona.get("perfil") != "coordinador" or persona.get("id") != coordinador.get("id"):
+        return jsonify(error="El QR no corresponde al coordinador de esta sesión."), 403
+    session["visita_coordinador_verificado_id"] = coordinador["id"]
+    return jsonify(coordinador={"id": coordinador["id"], "nombre": persona["nombre"], "cargo": persona.get("cargo")})
+
+
+@app.route("/api/visitas-tecnicas/verificar-coordinador-identificacion", methods=["POST"])
+def verificar_identificacion_coordinador_visita():
+    coordinador, error = verificar_coordinador_api()
+    if error:
+        return error
+    datos = request.get_json(silent=True)
+    if not isinstance(datos, dict):
+        return jsonify(error="El cuerpo de la solicitud debe ser un objeto JSON válido."), 400
+    identificacion = datos.get("identificacion")
+    if not isinstance(identificacion, str) or not identificacion.strip() or len(identificacion.strip()) > 80:
+        return jsonify(error="El número de identificación no es válido."), 400
+    try:
+        resultado = (
+            supabase.table("trabajadores")
+            .select("id, nombre, identificacion")
+            .eq("id", coordinador["id"])
+            .limit(2)
+            .execute()
+        )
+    except Exception as exc:
+        app.logger.warning("Falló la verificación de identificación de visita (%s).", type(exc).__name__)
+        return jsonify(error="No fue posible verificar la identificación ahora."), 503
+    if len(resultado.data or []) != 1:
+        return jsonify(error="No fue posible comprobar el perfil del coordinador."), 409
+    titular = resultado.data[0]
+    if str(titular.get("identificacion") or "").strip() != identificacion.strip():
+        return jsonify(error="La identificación no corresponde al coordinador autenticado."), 403
+    session["visita_coordinador_verificado_id"] = coordinador["id"]
+    return jsonify(coordinador={"id": coordinador["id"], "nombre": titular.get("nombre")})
+
+
+@app.route("/api/visitas-tecnicas/buscar-operario", methods=["POST"])
+def buscar_operario_visita():
+    _, error = verificar_coordinador_api()
+    if error:
+        return error
+    datos = request.get_json(silent=True)
+    if not isinstance(datos, dict):
+        return jsonify(error="El cuerpo de la solicitud debe ser un objeto JSON válido."), 400
+    if datos.get("qr"):
+        persona, error = persona_por_qr(datos.get("qr"))
+        if error:
+            return error
+        if (persona.get("perfil") or "").strip().lower() != "trabajador":
+            return jsonify(error="El QR no corresponde a un operario."), 409
+        return jsonify(operario={key: persona.get(key) for key in ("id", "nombre", "cargo")})
+    operario, error = buscar_operario_visita_por_identificacion(datos.get("identificacion"))
+    if error:
+        return error
+    return jsonify(operario=operario)
+
+
+@app.route("/api/visitas-tecnicas", methods=["POST"])
+def registrar_visita_tecnica():
+    coordinador, error = verificar_coordinador_api()
+    if error:
+        return error
+
+    datos = request.get_json(silent=True)
+    if not isinstance(datos, dict):
+        return jsonify(error="El cuerpo de la solicitud debe ser un objeto JSON válido."), 400
+    qr = datos.get("qr")
+    if qr:
+        persona, error = persona_por_qr(qr)
+        if error:
+            return error
+        if persona.get("perfil") != "coordinador" or persona.get("id") != coordinador.get("id"):
+            return jsonify(error="El QR no corresponde al coordinador de esta sesión."), 403
+    elif (datos.get("coordinador_id") != coordinador.get("id")
+          or session.get("visita_coordinador_verificado_id") != coordinador.get("id")):
+        return jsonify(error="Identifica al coordinador de esta sesión mediante QR o identificación validada."), 403
+
+    proyecto = datos.get("proyecto")
+    if not isinstance(proyecto, str) or not proyecto.strip() or len(proyecto.strip()) > 300:
+        return jsonify(error="Ingresa el nombre del proyecto o lugar de la visita (máximo 300 caracteres)."), 400
+    proyecto = proyecto.strip()
+    participante_id = datos.get("trabajador_id")
+    if participante_id is not None:
+        operario, error = persona_por_id_asistencia(participante_id)
+        if error:
+            return error
+        participante_id = operario["id"]
+    evento, error = validar_evento_offline(
+        datos, "visita", coordinador["id"], participante_id, proyecto=proyecto
+    )
+    if error:
+        return error
+
+    try:
+        respuesta = supabase.rpc(
+            "registrar_visita_tecnica_offline",
+            {
+                "p_coordinador_id": coordinador["id"],
+                "p_latitud": evento["latitud"],
+                "p_longitud": evento["longitud"],
+                "p_precision_m": evento["precision_m"],
+                "p_ubicacion_obtenida": evento["ubicacion_obtenida"],
+                "p_ocurrio_en": evento["ocurrio_en"],
+                "p_operacion_id": evento["operacion_id"],
+                "p_payload_hash": evento["payload_hash"],
+                "p_proyecto": proyecto,
+                "p_trabajador_id": participante_id,
+            },
+        ).execute()
+    except Exception as exc:
+        if "IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_DATA" in str(exc):
+            return jsonify(error="La clave de idempotencia ya se usó con datos diferentes. Genera una clave nueva para esta visita."), 409
+        sqlstate, mensaje = diagnostico_error_supabase(exc)
+        app.logger.warning(
+            "Falló registrar_visita_tecnica_offline; tipo=%s código=%s mensaje=%r",
+            type(exc).__name__, sqlstate, mensaje,
+        )
+        return jsonify(error="No se pudo guardar la visita. Confirma que la migración ACT06 esté aplicada."), 503
+
+    return jsonify(mensaje="Visita técnica guardada.", registro=respuesta.data, operacion_id=evento["operacion_id"]), 201
+
+
 # =========================================================
 # 8. GESTIÓN DE PERSONAS
 # =========================================================
@@ -457,6 +1127,69 @@ def personas():
         "personas.html",
         personas=respuesta.data,
     )
+
+
+@app.route("/personas/<int:persona_id>/qr", methods=["GET"])
+def ver_qr_persona(persona_id):
+    acceso = requiere_perfil("administrador")
+    if acceso:
+        return acceso
+
+    try:
+        persona = obtener_persona(persona_id)
+    except Exception as exc:
+        app.logger.warning("No se pudo consultar el QR de una persona (%s).", type(exc).__name__)
+        flash("No fue posible consultar el registro del QR.")
+        return redirect(url_for("personas"))
+
+    if not persona or persona.get("perfil") not in ("trabajador", "coordinador"):
+        flash("Solo trabajadores y coordinadores tienen un QR de asistencia.")
+        return redirect(url_for("personas"))
+    if not persona.get("qr"):
+        flash("Este trabajador todavía no tiene un QR asignado.")
+        return redirect(url_for("personas"))
+
+    return render_template(
+        "persona_qr.html",
+        persona=persona,
+        qr_imagen=imagen_qr_base64(persona["qr"]),
+    )
+
+
+@app.route("/personas/<int:persona_id>/qr/generar", methods=["POST"])
+def generar_qr_persona(persona_id):
+    acceso = requiere_perfil("administrador")
+    if acceso:
+        return acceso
+
+    try:
+        persona = obtener_persona(persona_id)
+        if not persona:
+            flash("El registro solicitado no existe.")
+        elif persona.get("perfil") not in ("trabajador", "coordinador"):
+            flash("Solo trabajadores y coordinadores tienen un QR de asistencia.")
+        elif persona.get("qr"):
+            flash("El trabajador ya tiene un QR asignado.")
+        else:
+            codigo = generar_codigo_qr_unico()
+            actualizacion = (
+                supabase.table("trabajadores")
+                .update({"qr": codigo})
+                .eq("id", persona_id)
+            )
+            if persona.get("qr") is None:
+                actualizacion = actualizacion.is_("qr", "null")
+            else:
+                actualizacion = actualizacion.eq("qr", persona["qr"])
+            resultado = actualizacion.select("id, qr").execute()
+            if resultado.data:
+                flash("QR asignado. Ya puedes abrirlo e imprimirlo.")
+            else:
+                flash("Otro administrador asignó el QR primero. Recarga el listado para abrirlo.")
+    except Exception as exc:
+        app.logger.warning("No se pudo asignar un QR (%s).", type(exc).__name__)
+        flash("No fue posible asignar el QR. Revisa la conexión e inténtalo de nuevo.")
+    return redirect(url_for("personas"))
 
 
 @app.route("/usuarios")
@@ -520,6 +1253,14 @@ def nueva_persona():
             app.logger.exception("Error validando el registro de una persona.")
             flash("No fue posible validar los datos. Inténtalo de nuevo.")
             return render_template("persona_form.html", persona=None)
+
+        if datos["perfil"] in ("trabajador", "coordinador"):
+            try:
+                datos["qr"] = generar_codigo_qr_unico()
+            except Exception as exc:
+                app.logger.warning("No se pudo generar el QR del trabajador (%s).", type(exc).__name__)
+                flash("No fue posible generar un QR único. No se guardó el registro; inténtalo de nuevo.")
+                return render_template("persona_form.html", persona=None)
 
         user_id = None
         cargo_con_acceso = datos["cargo"] in ("Coordinador", "Administrador")
@@ -634,7 +1375,7 @@ def cambiar_estado_persona(persona_id):
             flash("El registro solicitado no existe.")
         else:
             supabase.table("trabajadores").update({"estado": estado}).eq("id", persona_id).execute()
-            flash("Estado actualizado. El acceso se comprobará con este estado en el próximo inicio de sesión; la cuenta de Supabase Auth no se elimina ni se desactiva aquí.")
+            flash("Estado actualizado. Las rutas protegidas comprobarán el nuevo estado incluso en sesiones abiertas; esta acción no elimina la cuenta de Supabase Auth.")
     except Exception:
         app.logger.exception("Error cambiando el estado de un trabajador.")
         flash("No fue posible cambiar el estado del registro.")
@@ -684,4 +1425,4 @@ def cerrar_sesion():
 # =========================================================
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=False)

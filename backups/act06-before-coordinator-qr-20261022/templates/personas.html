@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trabajadores | Control de Asistencia</title>
+</head>
+<body>
+    <h1>Gestión de trabajadores</h1>
+    <p>Listado de trabajadores, coordinadores y administradores.</p>
+    <p><a href="{{ url_for('dashboard_admin') }}">Volver al panel</a></p>
+    <p><a href="{{ url_for('nueva_persona') }}">Registrar trabajador</a></p>
+
+    {% with mensajes = get_flashed_messages() %}
+      {% if mensajes %}<div role="status" aria-live="polite">{% for mensaje in mensajes %}<p>{{ mensaje }}</p>{% endfor %}</div>{% endif %}
+    {% endwith %}
+
+    {% if personas %}
+    <table border="1" cellpadding="8">
+        <thead><tr><th>Identificación</th><th>Nombre</th><th>Cargo</th><th>Perfil</th><th>Estado</th><th>QR</th><th>Acciones</th></tr></thead>
+        <tbody>
+        {% for persona in personas %}
+            <tr>
+                <td>{{ persona.identificacion or "Sin identificación" }}</td>
+                <td>{{ persona.nombre }}</td>
+                <td>{{ persona.cargo or "Sin cargo" }}</td>
+                <td>{{ persona.perfil or "Sin perfil" }}</td>
+                <td>{{ persona.estado or "Sin estado" }}</td>
+                <td>
+                    {% if persona.perfil == 'trabajador' and persona.qr %}
+                        <a href="{{ url_for('ver_qr_persona', persona_id=persona.id) }}">Ver / imprimir QR</a>
+                    {% elif persona.perfil == 'trabajador' %}
+                        <form action="{{ url_for('generar_qr_persona', persona_id=persona.id) }}" method="post" style="display:inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit">Generar QR</button>
+                        </form>
+                    {% else %}
+                        No aplica
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{{ url_for('editar_persona', persona_id=persona.id) }}">Editar</a>
+                    {% if persona.estado == 'activo' %}
+                    <form action="{{ url_for('cambiar_estado_persona', persona_id=persona.id) }}" method="post" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="estado" value="inactivo"><button type="submit">Desactivar</button>
+                    </form>
+                    {% else %}
+                    <form action="{{ url_for('cambiar_estado_persona', persona_id=persona.id) }}" method="post" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="estado" value="activo"><button type="submit">Activar</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}<p>Todavía no hay personas registradas.</p>{% endif %}
+</body>
+</html>

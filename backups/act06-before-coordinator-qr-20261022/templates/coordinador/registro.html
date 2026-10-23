@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>Registro de asistencia | Sistema de Asistencia</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="{{ url_for('static', filename='js/asistencia.js') }}" defer></script>
+</head>
+<body class="attendance-page">
+    <header class="topbar">
+        <a class="brand" href="{{ url_for('registro_coordinador') }}" aria-label="Inicio de asistencia">
+            <span class="brand-mark" aria-hidden="true">▦</span>
+            <span><strong>Control de Asistencia</strong><small>Área del coordinador</small></span>
+        </a>
+        <div class="topbar-actions">
+            <span class="signed-in">{{ correo }}</span>
+            <form action="{{ url_for('cerrar_sesion') }}" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="button button-ghost" type="submit">Salir</button>
+            </form>
+        </div>
+    </header>
+
+    <main class="attendance-main">
+        <div class="page-heading">
+            <p class="eyebrow">Registro operativo</p>
+            <h1>¿Qué vas a registrar?</h1>
+            <p class="muted">Elige el tipo de actividad para continuar.</p>
+        </div>
+
+        <div id="flash-messages" class="flash-list" role="status" aria-live="polite">
+            {% with mensajes = get_flashed_messages() %}
+                {% for mensaje in mensajes %}<p class="flash-message">{{ mensaje }}</p>{% endfor %}
+            {% endwith %}
+        </div>
+
+        <section id="flow-choice" class="flow-stack" aria-label="Tipo de registro">
+            <button class="flow-card" type="button" data-show="cot-flow">
+                <span class="flow-icon" aria-hidden="true">▦</span>
+                <span class="flow-copy"><strong>Registro de asistencia por COT</strong><small>Entrada y salida de trabajadores</small></span>
+                <span class="flow-arrow" aria-hidden="true">›</span>
+            </button>
+            <button class="flow-card" type="button" data-show="visit-flow">
+                <span class="flow-icon flow-icon-soft" aria-hidden="true">⌖</span>
+                <span class="flow-copy"><strong>Visita técnica</strong><small>Sin COT · con ubicación GPS</small></span>
+                <span class="flow-arrow" aria-hidden="true">›</span>
+            </button>
+        </section>
+
+        <section id="cot-flow" class="flow-panel" hidden>
+            <div class="panel-heading"><p class="eyebrow">Asistencia por COT</p><h2>Datos del proyecto</h2><p class="muted">Ingresa el COT y el proyecto antes de escanear a cada trabajador.</p></div>
+            <form id="cot-form" class="form-card">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <label for="cot">COT</label>
+                <input id="cot" name="cot" maxlength="200" autocomplete="off" required placeholder="Ej. COT-02548">
+                <label for="proyecto">Proyecto</label>
+                <input id="proyecto" name="proyecto" maxlength="300" autocomplete="off" required placeholder="Nombre del proyecto">
+                <button class="button button-primary button-block" type="submit">Continuar al escáner</button>
+            </form>
+            <button class="button button-back" type="button" data-back>← Regresar</button>
+        </section>
+
+        <section id="scanner-flow" class="flow-panel" hidden>
+            <div class="context-banner"><span>PROYECTO ACTIVO</span><strong id="project-context"></strong></div>
+            <div class="panel-heading"><p class="eyebrow">Asistencia</p><h2>Escanea el QR del trabajador</h2><p class="muted">El servidor comprobará que el QR corresponda a una persona activa.</p></div>
+            <div class="scanner-card">
+                <video id="camera-preview" class="camera-preview" playsinline muted hidden aria-label="Vista de la cámara para escanear el QR"></video>
+                <div id="camera-placeholder" class="camera-placeholder"><span aria-hidden="true">▦</span><p>La cámara se activa únicamente al pulsar el botón.</p></div>
+                <p id="camera-status" class="status-text" role="status" aria-live="polite">Para comenzar, permite el uso de la cámara.</p>
+                <button id="start-camera" class="button button-primary button-block" type="button">Activar cámara</button>
+                <form id="manual-qr-form" class="manual-qr-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <label for="manual-qr">O ingresa el contenido del QR</label>
+                    <div class="inline-input"><input id="manual-qr" name="qr" autocomplete="off" required><button class="button button-secondary" type="submit">Buscar</button></div>
+                </form>
+            </div>
+            <div id="worker-card" class="worker-card" hidden>
+                <p class="eyebrow">Trabajador encontrado</p>
+                <h3 id="worker-name"></h3>
+                <p id="worker-detail" class="muted"></p>
+                <p id="open-attendance-detail" class="open-attendance-detail" hidden></p>
+                <button id="confirm-attendance" class="button button-primary button-block" type="button"></button>
+                <p id="attendance-result" class="status-text" role="status" aria-live="polite"></p>
+                <button id="scan-next" class="button button-secondary button-block" type="button" hidden>Escanear otro trabajador</button>
+            </div>
+            <button class="button button-back" type="button" data-back>← Cambiar tipo de registro</button>
+        </section>
+
+        <section id="visit-flow" class="flow-panel" hidden>
+            <div class="panel-heading"><p class="eyebrow">Visita técnica</p><h2>Registrar ubicación</h2><p class="muted">La visita quedará asociada a tu cuenta de coordinador, con la fecha y hora del servidor.</p></div>
+            <div class="form-card visit-card">
+                <p class="privacy-note">Se guardarán las coordenadas GPS y su precisión para esta visita. El navegador solicitará permiso de ubicación.</p>
+                <button id="register-visit" class="button button-primary button-block" type="button">Obtener ubicación y registrar visita</button>
+                <p id="visit-status" class="status-text" role="status" aria-live="polite"></p>
+            </div>
+            <button class="button button-back" type="button" data-back>← Regresar</button>
+        </section>
+    </main>
+</body>
+</html>

@@ -26,15 +26,28 @@
                 <td>{{ persona.cargo or "Sin cargo" }}</td>
                 <td>{{ persona.perfil or "Sin perfil" }}</td>
                 <td>{{ persona.estado or "Sin estado" }}</td>
-                <td>{{ persona.qr or "Sin asignar" }}</td>
+                <td>
+                    {% if persona.perfil in ('trabajador', 'coordinador') and persona.qr %}
+                        <a href="{{ url_for('ver_qr_persona', persona_id=persona.id) }}">Ver / imprimir QR</a>
+                    {% elif persona.perfil in ('trabajador', 'coordinador') %}
+                        <form action="{{ url_for('generar_qr_persona', persona_id=persona.id) }}" method="post" style="display:inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit">Generar QR</button>
+                        </form>
+                    {% else %}
+                        No aplica
+                    {% endif %}
+                </td>
                 <td>
                     <a href="{{ url_for('editar_persona', persona_id=persona.id) }}">Editar</a>
                     {% if persona.estado == 'activo' %}
                     <form action="{{ url_for('cambiar_estado_persona', persona_id=persona.id) }}" method="post" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="estado" value="inactivo"><button type="submit">Desactivar</button>
                     </form>
                     {% else %}
                     <form action="{{ url_for('cambiar_estado_persona', persona_id=persona.id) }}" method="post" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="estado" value="activo"><button type="submit">Activar</button>
                     </form>
                     {% endif %}

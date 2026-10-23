@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR de {{ persona.nombre }} | Control de Asistencia</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="qr-page">
+    <main class="qr-card">
+        <p class="eyebrow no-print">Identificación de asistencia</p>
+        <h1>QR del trabajador</h1>
+        <p class="qr-person-name">{{ persona.nombre }}</p>
+        <p class="muted">Identificación: {{ persona.identificacion or 'No registrada' }}</p>
+        <img class="qr-image" src="data:image/png;base64,{{ qr_imagen }}" alt="Código QR de asistencia para {{ persona.nombre }}">
+        <p class="muted qr-instructions">Imprime esta página y entrégala a la persona. El QR permite identificarla dentro de una sesión de coordinación autorizada.</p>
+        <div class="qr-actions no-print">
+            <button class="button button-primary" type="button" onclick="window.print()">Imprimir QR</button>
+            <a class="button button-secondary" href="{{ url_for('personas') }}">Volver a trabajadores</a>
+        </div>
+    </main>
+</body>
+</html>

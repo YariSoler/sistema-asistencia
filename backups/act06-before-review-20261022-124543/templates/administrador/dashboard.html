@@ -1,0 +1,33 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | Sistema de Asistencia</title>
+</head>
+<body>
+    <header>
+        <h1>Panel del administrador</h1>
+        <p>Gestión del sistema de asistencia</p>
+    </header>
+
+    <main>
+        <h2>Bienvenido al área administrativa</h2>
+        <p>Desde aquí podrás gestionar los recursos del sistema.</p>
+
+        <nav aria-label="Menú administrativo">
+            <ul>
+                <li><a href="/personas">Trabajadores y perfiles</a></li>
+                <li><a href="{{ url_for('usuarios') }}">Usuarios y accesos</a></li>
+                <li><a href="/novedades">Novedades</a></li>
+                <li><a href="/reportes">Reportes</a></li>
+            </ul>
+        </nav>
+
+        <form action="/cerrar-sesion" method="POST">
+            <button type="submit">Cerrar sesión</button>
+        </form>
+    </main>
+</body>
+</html>

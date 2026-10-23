@@ -26,6 +26,7 @@
         </nav>
 
         <form action="/cerrar-sesion" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit">Cerrar sesión</button>
         </form>
     </main>

@@ -28,10 +28,12 @@
                     <a href="{{ url_for('editar_persona', persona_id=usuario.id) }}">Editar datos</a>
                     {% if usuario.estado == 'activo' %}
                     <form action="{{ url_for('cambiar_estado_persona', persona_id=usuario.id) }}" method="post" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="estado" value="inactivo"><button type="submit">Desactivar acceso</button>
                     </form>
                     {% else %}
                     <form action="{{ url_for('cambiar_estado_persona', persona_id=usuario.id) }}" method="post" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="estado" value="activo"><button type="submit">Activar acceso</button>
                     </form>
                     {% endif %}

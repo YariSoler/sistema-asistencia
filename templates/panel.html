@@ -16,6 +16,7 @@
         <p><a href="/personas">Gestionar personas</a></p>
 
         <form action="/cerrar-sesion" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit">Cerrar sesión</button>
         </form>
     </body>
