@@ -1,5 +1,7 @@
 import os
 import base64
+import sys
+import types
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,7 +14,19 @@ os.environ["SUPABASE_KEY"] = "test-anon-key"
 os.environ["SUPABASE_SERVICE_ROLE_KEY"] = "test-service-role-key"
 os.environ["FLASK_SECRET_KEY"] = "test-flask-secret"
 
+try:
+    import qrcode  # noqa: F401
+    QRCODE_AVAILABLE = True
+except ImportError:
+    QRCODE_AVAILABLE = False
+    sys.modules["qrcode"] = types.ModuleType("qrcode")
+
 import app as asistencia_app  # noqa: E402
+
+ACT06_BASE_MIGRATION = PROJECT_ROOT / "supabase/migrations/20261022_act06_asistencia_visitas.sql"
+if not ACT06_BASE_MIGRATION.exists():
+    # The checked-in migration source was kept in the dated backup only.
+    ACT06_BASE_MIGRATION = PROJECT_ROOT / "backups/act06-field-improvements-20261023/supabase/migrations/20261022_act06_asistencia_visitas.sql"
 
 
 class ProteccionCsrfTests(unittest.TestCase):
@@ -95,14 +109,14 @@ class ReglasAct06Tests(unittest.TestCase):
                     self.assertNotIn("SUPABASE_SERVICE_ROLE_KEY", path.read_text(encoding="utf-8"))
 
     def test_migracion_define_turno_unico_y_rechazo_idempotente(self):
-        sql = (PROJECT_ROOT / "supabase/migrations/20261022_act06_asistencia_visitas.sql").read_text(encoding="utf-8")
+        sql = ACT06_BASE_MIGRATION.read_text(encoding="utf-8")
         self.assertIn("trabajadores_qr_uidx", sql)
         self.assertIn("WHERE fecha_salida IS NULL", sql)
         self.assertIn("IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_DATA", sql)
         self.assertIn("precision_m IS NOT DISTINCT FROM EXCLUDED.precision_m", sql)
 
     def test_migracion_solo_permite_asistencia_del_coordinador_para_si_mismo(self):
-        sql = (PROJECT_ROOT / "supabase/migrations/20261022_act06_asistencia_visitas.sql").read_text(encoding="utf-8")
+        sql = ACT06_BASE_MIGRATION.read_text(encoding="utf-8")
         self.assertIn("perfil = 'coordinador' AND id = p_coordinador_id", sql)
         self.assertIn("PERSONA_NO_AUTORIZADA_PARA_ENTRADA", sql)
         self.assertIn("PERSONA_NO_AUTORIZADA_PARA_SALIDA", sql)
@@ -344,7 +358,7 @@ class CicloQrTests(unittest.TestCase):
 
     def test_listado_admin_muestra_enlace_al_qr_sin_exponer_el_codigo(self):
         tabla = MagicMock()
-        tabla.select.return_value.order.return_value.execute.return_value = SimpleNamespace(
+        tabla.select.return_value.neq.return_value.order.return_value.range.return_value.execute.return_value = SimpleNamespace(
             data=[self.persona]
         )
         with (
@@ -363,7 +377,7 @@ class CicloQrTests(unittest.TestCase):
         tabla.update.return_value.eq.return_value.is_.return_value.select.return_value.execute.return_value = SimpleNamespace(
             data=[{"id": 15, "qr": "QR-RECUPERADO"}]
         )
-        tabla.select.return_value.order.return_value.execute.return_value = SimpleNamespace(
+        tabla.select.return_value.neq.return_value.order.return_value.range.return_value.execute.return_value = SimpleNamespace(
             data=[persona_sin_qr]
         )
         with (
@@ -395,6 +409,8 @@ class CicloQrTests(unittest.TestCase):
         tabla.update.return_value.eq.return_value.is_.assert_called_once_with("qr", "null")
 
     def test_imagen_qr_real_es_png_decodificable(self):
+        if not QRCODE_AVAILABLE:
+            self.skipTest("El paquete qrcode no está instalado en este entorno.")
         contenido = base64.b64decode(asistencia_app.imagen_qr_base64("QR-PRUEBA-UNICO"))
         self.assertTrue(contenido.startswith(b"\x89PNG\r\n\x1a\n"))
 
@@ -639,7 +655,7 @@ class CicloQrTests(unittest.TestCase):
             }, headers=self.headers)
 
         self.assertEqual(response.status_code, 503)
-        self.assertEqual(response.get_json()["error"], "No se pudo guardar la visita. Confirma que la migración ACT06 esté aplicada.")
+        self.assertEqual(response.get_json()["error"], "No se pudo guardar la visita. Revisa la conexión e inténtalo de nuevo.")
         self.assertIn("PGRST202", "\n".join(captured.output))
         self.assertIn("RPC signature does not match", "\n".join(captured.output))
         self.assertNotIn("QR-COORD", "\n".join(captured.output))

@@ -111,6 +111,7 @@ function createHarness(harnessOptions = {}) {
         "proyecto", "project-context", "worker-card", "manual-id-form", "manual-id", "identification-status", "camera-status",
         "scanner-title", "scanner-description", "camera-placeholder", "start-camera", "worker-name", "worker-detail",
         "open-attendance-detail", "confirm-attendance", "continue-offline", "attendance-result", "scan-next",
+        "attendance-observations",
         "visit-coordinator-confirmation", "register-visit", "identify-visit-coordinator", "visit-status",
         "visit-project-form", "visit-project", "visit-identification-stage", "visit-project-context",
         "visit-coordinator-id-form", "visit-coordinator-id", "visit-coordinator-id-status", "visit-participants-stage",
@@ -288,6 +289,25 @@ test("búsqueda por cédula, pérdida al registrar y reintento automático conse
     assert.equal(ui.elements.get("pending-count").textContent, "0");
 });
 
+test("las observaciones del tramo se conservan en la operación offline sin cambiar el UUID", async () => {
+    const ui = createHarness({ failEntryAttempts: 1 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const cotForm = ui.elements.get("cot-form");
+    cotForm.values = { cot: "COT-42", proyecto: "Proyecto Norte" };
+    await cotForm.dispatch("submit");
+    const lookup = ui.elements.get("manual-id-form");
+    lookup.values = { identificacion: "12345" };
+    await lookup.dispatch("submit");
+    ui.elements.get("attendance-observations").value = "Cambio de turno documentado";
+
+    await ui.elements.get("confirm-attendance").dispatch("click");
+    const stored = [...ui.indexedDB.stores.get("queue").values()].find((item) => item.tipo === "entrada");
+    assert.equal(stored.payload.observaciones, "Cambio de turno documentado");
+    assert.equal(stored.payload.cot, "COT-42");
+    assert.equal(stored.payload.proyecto, "Proyecto Norte");
+    assert.equal(stored.operacion_id, ui.opIdFromBody[0]);
+});
+
 test("un rechazo de autorización no ofrece ni guarda el flujo sin conexión", async () => {
     const ui = createHarness({ identificationResponse: response(403, { error: "Solo un coordinador puede registrar asistencia." }) });
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -398,6 +418,17 @@ test("los selectores DOM requeridos por JavaScript existen en la plantilla Flask
     const ids = [...block[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]);
     const missing = ids.filter((id) => !template.includes(`id="${id}"`));
     assert.deepEqual(missing, []);
+});
+
+test("las horas de asistencia se presentan en America/Bogota y se identifican como hora Colombia", () => {
+    const script = fs.readFileSync("static/js/asistencia.js", "utf8");
+    assert.match(script, /timeZone: "America\/Bogota"/);
+    assert.match(script, /Hora Colombia:/);
+    const parts = new Intl.DateTimeFormat("es-CO", {
+        dateStyle: "medium", timeStyle: "short", timeZone: "America/Bogota",
+    }).formatToParts(new Date("2026-10-28T17:30:00+00:00"));
+    assert.equal(parts.find((part) => part.type === "hour")?.value, "12");
+    assert.equal(parts.find((part) => part.type === "minute")?.value, "30");
 });
 
 test("la plantilla y el cargador alternativo usan el SRI verificado de qr-scanner 1.4.2", () => {

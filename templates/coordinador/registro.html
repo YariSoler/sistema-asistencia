@@ -43,7 +43,7 @@
         </section>
 
         <section id="cot-flow" class="flow-panel" hidden>
-            <div class="panel-heading"><p class="eyebrow">Asistencia por COT</p><h2>Datos del proyecto</h2><p class="muted">Ingresa el COT y el proyecto antes de escanear a cada trabajador.</p></div>
+            <div class="panel-heading"><p class="eyebrow">Asistencia por COT</p><h2>Datos del proyecto</h2><p class="muted">Ingresa el COT y el proyecto antes de escanear. Cada entrada y salida conserva su propio tramo; después de cerrar un proyecto puedes iniciar otro sin sobrescribir el anterior.</p></div>
             <form id="cot-form" class="form-card">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <label for="cot">COT</label>
@@ -76,6 +76,8 @@
                 <h3 id="worker-name"></h3>
                 <p id="worker-detail" class="muted"></p>
                 <p id="open-attendance-detail" class="open-attendance-detail" hidden></p>
+                <label class="attendance-note-label" for="attendance-observations">Observaciones de este tramo (opcional)</label>
+                <textarea id="attendance-observations" maxlength="1000" rows="3" placeholder="Detalle relevante para esta entrada o salida"></textarea>
                 <button id="confirm-attendance" class="button button-primary button-block" type="button"></button>
                 <button id="continue-offline" class="button button-secondary button-block" type="button" hidden>Continuar sin conexión</button>
                 <p id="attendance-result" class="status-text" role="status" aria-live="polite"></p>

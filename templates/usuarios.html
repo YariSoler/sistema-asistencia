@@ -1,47 +1,27 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Usuarios y accesos | Control de Asistencia</title>
-</head>
-<body>
-    <h1>Usuarios y accesos</h1>
-    <p>Coordinadores y administradores vinculados con una cuenta de Supabase Auth.</p>
-    <p><a href="{{ url_for('dashboard_admin') }}">Volver al panel</a> | <a href="{{ url_for('personas') }}">Gestionar personas</a></p>
-    {% with mensajes = get_flashed_messages() %}
-      {% if mensajes %}<div role="status" aria-live="polite">{% for mensaje in mensajes %}<p>{{ mensaje }}</p>{% endfor %}</div>{% endif %}
-    {% endwith %}
-    {% if usuarios %}
-    <table border="1" cellpadding="8">
-        <thead><tr><th>Nombre</th><th>Identificación</th><th>Cargo</th><th>Perfil</th><th>Correo Auth</th><th>Estado de acceso</th><th>Administrar</th></tr></thead>
-        <tbody>
-        {% for usuario in usuarios %}
-            <tr>
-                <td>{{ usuario.nombre }}</td>
-                <td>{{ usuario.identificacion or 'Sin identificación' }}</td>
-                <td>{{ usuario.cargo or 'Sin cargo' }}</td>
-                <td>{{ usuario.perfil }}</td>
-                <td>{{ usuario.correo }}</td>
-                <td>{{ usuario.estado or 'Sin estado' }}</td>
-                <td>
-                    <a href="{{ url_for('editar_persona', persona_id=usuario.id) }}">Editar datos</a>
-                    {% if usuario.estado == 'activo' %}
-                    <form action="{{ url_for('cambiar_estado_persona', persona_id=usuario.id) }}" method="post" style="display:inline">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="estado" value="inactivo"><button type="submit">Desactivar acceso</button>
-                    </form>
-                    {% else %}
-                    <form action="{{ url_for('cambiar_estado_persona', persona_id=usuario.id) }}" method="post" style="display:inline">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="estado" value="activo"><button type="submit">Activar acceso</button>
-                    </form>
-                    {% endif %}
-                </td>
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
-    {% else %}<p>No hay cuentas vinculadas de coordinadores o administradores.</p>{% endif %}
-</body>
-</html>
+{% extends "administrador/base.html" %}
+{% set active_page = 'usuarios' %}
+{% block title %}Usuarios y accesos{% endblock %}
+{% block content %}
+<div class="admin-page-heading"><div><h1>Usuarios</h1><p>Gestión de accesos por rol y estado de cuenta.</p></div><a class="button button-primary" href="{{ url_for('nueva_persona') }}">＋ Crear usuario</a></div>
+<div class="table-card"><div class="table-scroll"><table class="admin-table">
+    <thead><tr><th>NOMBRE</th><th>USUARIO</th><th>ROL</th><th>ESTADO</th><th>ADMINISTRAR</th></tr></thead>
+    <tbody>
+    {% for usuario in usuarios %}
+    <tr>
+        <td><strong>{{ usuario.nombre }}</strong></td><td>{{ usuario.correo or 'Cuenta vinculada' }}</td>
+        <td><span class="role-pill role-pill--{{ usuario.perfil }}">{{ usuario.perfil|upper }}</span></td>
+        <td><span class="state-pill {{ 'is-inactive' if usuario.estado != 'activo' else '' }}">{{ usuario.estado or 'Sin estado' }}</span></td>
+        <td class="people-actions"><a class="button button-table" href="{{ url_for('editar_persona', persona_id=usuario.id) }}">Editar</a>
+            <form action="{{ url_for('cambiar_estado_persona', persona_id=usuario.id) }}" method="post" onsubmit="return confirm('¿{{ 'Desactivar' if usuario.estado == 'activo' else 'Activar' }} este acceso? Se conserva la cuenta y sus datos.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="confirmar_estado" value="si"><input type="hidden" name="estado" value="{{ 'inactivo' if usuario.estado == 'activo' else 'activo' }}"><button class="button button-table" type="submit">{{ 'Desactivar' if usuario.estado == 'activo' else 'Activar' }}</button></form>
+            <form action="{{ url_for('eliminar_persona', persona_id=usuario.id) }}" method="post" onsubmit="return confirm('¿Eliminar a esta persona? Se quitarán sus datos personales y acceso. Se conservarán sus asistencias, visitas y novedades de forma anonimizada.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="confirmar_eliminacion" value="si"><button class="button button-table button-danger" type="submit">Eliminar</button></form>
+        </td>
+    </tr>
+    {% else %}<tr><td colspan="5" class="empty-cell">No hay cuentas vinculadas de coordinadores o administradores.</td></tr>{% endfor %}
+    </tbody>
+</table></div></div>
+{% if total_paginas and total_paginas > 1 %}<nav class="table-pagination" aria-label="Paginación de usuarios">
+    {% if pagina > 1 %}<a class="button button-secondary" href="{{ url_for('usuarios', pagina=pagina - 1) }}">Anterior</a>{% endif %}
+    <span>Página {{ pagina }} de {{ total_paginas }}</span>
+    {% if pagina < total_paginas %}<a class="button button-secondary" href="{{ url_for('usuarios', pagina=pagina + 1) }}">Siguiente</a>{% endif %}
+</nav>{% endif %}
+{% endblock %}

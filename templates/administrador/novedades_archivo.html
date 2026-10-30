@@ -1,0 +1,60 @@
+{% extends "administrador/base.html" %}
+{% set active_page = 'novedades' %}
+{% block title %}Archivo de novedades{% endblock %}
+{% block content %}
+<div class="admin-page-heading">
+    <div><h1>Archivo de novedades</h1><p>Consulta y restaura novedades archivadas previamente.</p></div>
+    <a class="button button-secondary" href="{{ url_for('novedades_admin') }}">Volver a novedades</a>
+</div>
+{% if errores %}<div class="admin-data-notice" role="alert">{% for error in errores %}<p>{{ error }}</p>{% endfor %}</div>{% endif %}
+{% if mensaje %}<div class="flash-message is-success" role="status">{{ mensaje }}</div>{% endif %}
+
+<section class="admin-section">
+    <div class="section-title"><h2>Vista previa</h2><span class="muted">No se borra ningún dato</span></div>
+    <form class="admin-filter-card archive-preview-form" method="get" action="{{ url_for('archivo_novedades_admin') }}">
+        <div class="form-field"><label for="fecha-limite">Fecha límite</label><input id="fecha-limite" type="date" name="fecha_limite" value="{{ fecha_limite }}" required></div>
+        <div class="form-actions"><button class="button button-primary" type="submit">Calcular vista previa</button></div>
+    </form>
+    <p class="dashboard-definition">Se archivan únicamente novedades activas cuya fecha final sea anterior a la fecha elegida. El archivo conserva sus datos y permite restaurarlos. No existe borrado anual automático.</p>
+    {% if cantidad is not none %}
+        <div class="archive-preview-count"><strong>{{ cantidad }}</strong><span>novedades coinciden con el límite {{ fecha_limite }} (exclusivo).</span></div>
+        {% if cantidad > 0 %}
+        <form class="archive-confirm-card" method="post" action="{{ url_for('archivo_novedades_admin') }}" onsubmit="return confirm('¿Archivar estas {{ cantidad }} novedades? Podrás restaurarlas después desde esta misma página.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="accion" value="archivar">
+            <input type="hidden" name="fecha_limite" value="{{ fecha_limite }}">
+            <input type="hidden" name="cantidad_previsualizada" value="{{ cantidad }}">
+            <label><input type="checkbox" name="confirmar" value="si" required> Confirmo archivar solo las novedades mostradas en la vista previa.</label>
+            <button class="button button-primary" type="submit">Archivar novedades</button>
+        </form>
+        {% endif %}
+    {% endif %}
+</section>
+
+<section class="admin-section">
+    <div class="section-title"><h2>Novedades archivadas</h2><span class="muted">Se muestran hasta 50 por página</span></div>
+    <div class="table-card"><div class="table-scroll"><table class="admin-table">
+        <thead><tr><th>FECHA</th><th>TRABAJADOR</th><th>TIPO</th><th>MOTIVO</th><th>ARCHIVADA</th><th>ACCIÓN</th></tr></thead>
+        <tbody>
+        {% for novedad in archivadas %}
+        <tr>
+            <td>{{ novedad.fecha_inicio }}{% if novedad.fecha_fin != novedad.fecha_inicio %}<br><span class="muted">al {{ novedad.fecha_fin }}</span>{% endif %}</td>
+            <td>{{ novedad.trabajador_nombre }}</td>
+            <td><span class="novelty-pill novelty-pill--{{ novedad.color }}">{{ novedad.tipo_etiqueta }}</span></td>
+            <td><strong>{{ novedad.motivo }}</strong>{% if novedad.observaciones %}<br><span class="muted">{{ novedad.observaciones }}</span>{% endif %}</td>
+            <td>{{ novedad.archivado_en }}</td>
+            <td><form method="post" action="{{ url_for('archivo_novedades_admin') }}" onsubmit="return confirm('¿Restaurar esta novedad al listado activo?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="accion" value="restaurar"><input type="hidden" name="novedad_id" value="{{ novedad.id }}">
+                <button class="button button-table" type="submit">Restaurar</button>
+            </form></td>
+        </tr>
+        {% else %}<tr><td colspan="6" class="empty-cell">No hay novedades archivadas en esta página.</td></tr>{% endfor %}
+        </tbody>
+    </table></div></div>
+    <nav class="table-pagination" aria-label="Paginación del archivo">
+        {% if pagina > 1 %}<a class="button button-secondary" href="{{ url_for('archivo_novedades_admin', pagina=pagina - 1, fecha_limite=fecha_limite) }}">Anterior</a>{% endif %}
+        <span>Página {{ pagina }}</span>
+        {% if hay_archivadas_siguiente %}<a class="button button-secondary" href="{{ url_for('archivo_novedades_admin', pagina=pagina + 1, fecha_limite=fecha_limite) }}">Siguiente</a>{% endif %}
+    </nav>
+</section>
+{% endblock %}

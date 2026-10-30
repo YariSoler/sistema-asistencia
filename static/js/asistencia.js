@@ -42,6 +42,7 @@
         "manual-id-form", "manual-id", "identification-status", "camera-status", "scanner-title",
         "scanner-description", "camera-placeholder", "start-camera", "worker-name", "worker-detail",
         "open-attendance-detail", "confirm-attendance", "continue-offline", "attendance-result", "scan-next",
+        "attendance-observations",
         "visit-coordinator-confirmation", "register-visit", "identify-visit-coordinator", "visit-status",
         "visit-project-form", "visit-project", "visit-identification-stage", "visit-project-context",
         "visit-coordinator-id-form", "visit-coordinator-id", "visit-coordinator-id-status",
@@ -494,9 +495,10 @@
         selectedQr = isCoordinator ? (worker.qr || "") : "";
         setText("worker-name", worker.nombre || "Coordinador");
         setText("worker-detail", worker.cargo || (isCoordinator ? "Coordinador" : "Operario"));
+        $("attendance-observations").value = "";
         const openDetail = $("open-attendance-detail");
         if (open) {
-            setText(openDetail, `Entrada abierta: ${open.cot || "COT pendiente"} · ${open.proyecto || "Proyecto pendiente"} · ${formatDate(open.fecha_entrada)}`);
+            setText(openDetail, `Entrada abierta · Hora Colombia: ${formatDate(open.fecha_entrada)} · ${open.cot || "COT pendiente"} · ${open.proyecto || "Proyecto pendiente"}`);
             openDetail.hidden = false;
         } else {
             openDetail.hidden = true;
@@ -867,6 +869,8 @@
                     payload.cot = contextCot;
                     payload.proyecto = contextProject;
                 }
+                const observaciones = $("attendance-observations").value.trim();
+                if (observaciones) payload.observaciones = observaciones;
                 operation = {
                     operacion_id: createIdempotencyKey(),
                     tipo: selectedAction,

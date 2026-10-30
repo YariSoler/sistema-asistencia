@@ -1,97 +1,105 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#f5f8f1">
     <title>Iniciar sesión | Control de Asistencia</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
-    <h1>Sistema de Control de Asistencia</h1>
-    <h2>Iniciar sesión</h2>
+<body class="login-page">
+    <main class="login-layout">
+        <header class="login-heading">
+            <div class="login-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" role="img">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3m13-5h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3m13 5h3a2 2 0 0 0 2-2v-3M7 12h10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <h1>Control de Asistencia</h1>
+            <p>Acceso para coordinadores y administradores</p>
+        </header>
 
-    <p>Selecciona el tipo de acceso que corresponde a tu cuenta.</p>
+        <form class="login-card" method="POST" action="{{ url_for('login') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-    <form method="POST" action="{{ url_for('login') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-        <fieldset>
-            <legend>Tipo de usuario</legend>
-
-            <label for="rol_coordinador">
-                <input
-                    type="radio"
-                    id="rol_coordinador"
-                    name="rol"
-                    value="coordinador"
-                    required
-                >
-                Coordinador
-            </label>
-
-            <br><br>
-
-            <label for="rol_administrador">
-                <input
-                    type="radio"
-                    id="rol_administrador"
-                    name="rol"
-                    value="administrador"
-                    required
-                >
-                Administrador
-            </label>
-        </fieldset>
-
-        <br>
-
-        <div>
-            <label for="correo">Correo electrónico</label>
-            <br>
-            <input
-                type="email"
-                id="correo"
-                name="correo"
-                placeholder="usuario@empresa.com"
-                autocomplete="username"
-                required
-            >
-        </div>
-
-        <br>
-
-        <div>
-            <label for="contrasena">Contraseña</label>
-            <br>
-            <input
-                type="password"
-                id="contrasena"
-                name="contrasena"
-                placeholder="Ingresa tu contraseña"
-                autocomplete="current-password"
-                required
-            >
-        </div>
-
-        <br>
-
-        {% with mensajes = get_flashed_messages() %}
-            {% if mensajes %}
-                <div role="alert" aria-live="assertive">
-                    {% for mensaje in mensajes %}
-                        <p>{{ mensaje }}</p>
-                    {% endfor %}
+            <fieldset class="login-role-fieldset">
+                <legend>Rol</legend>
+                <div class="login-role-options">
+                    <label class="login-role-option" for="rol_coordinador">
+                        <input type="radio" id="rol_coordinador" name="rol" value="coordinador" required>
+                        <span>Coordinador</span>
+                    </label>
+                    <label class="login-role-option" for="rol_administrador">
+                        <input type="radio" id="rol_administrador" name="rol" value="administrador" required>
+                        <span>Administrador</span>
+                    </label>
                 </div>
-            {% endif %}
-        {% endwith %}
+            </fieldset>
 
-        <button type="submit">Iniciar sesión</button>
+            <div class="login-field">
+                <label for="correo">Usuario</label>
+                <input
+                    type="email"
+                    id="correo"
+                    name="correo"
+                    placeholder="usuario@empresa.com"
+                    autocomplete="username"
+                    aria-describedby="login-user-hint"
+                    required
+                >
+                <small id="login-user-hint">Ingresa el correo asociado a tu cuenta.</small>
+            </div>
 
-    </form>
+            <div class="login-field">
+                <label for="contrasena">Contraseña</label>
+                <div class="login-password-wrap">
+                    <input
+                        type="password"
+                        id="contrasena"
+                        name="contrasena"
+                        placeholder="Ingresa tu contraseña"
+                        autocomplete="current-password"
+                        required
+                    >
+                    <button class="login-password-toggle" type="button" aria-controls="contrasena" aria-pressed="false">
+                        Mostrar
+                    </button>
+                </div>
+            </div>
 
-    <p>
-        <a href="{{ url_for('inicio') }}">Volver al inicio</a>
-    </p>
+            {% with mensajes = get_flashed_messages() %}
+                {% if mensajes %}
+                    <div class="login-alert" role="alert" aria-live="assertive">
+                        {% for mensaje in mensajes %}
+                            <p>{{ mensaje }}</p>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <button class="button button-primary login-submit" type="submit">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M10 17l5-5-5-5m5 5H3m10-9h5a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3h-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                Iniciar sesión
+            </button>
+
+            <a class="login-back-link" href="{{ url_for('inicio') }}">Volver al inicio</a>
+        </form>
+    </main>
+
+    <script>
+        (() => {
+            const password = document.getElementById("contrasena");
+            const toggle = document.querySelector(".login-password-toggle");
+            if (!password || !toggle) return;
+            toggle.addEventListener("click", () => {
+                const visible = password.type === "password";
+                password.type = visible ? "text" : "password";
+                toggle.textContent = visible ? "Ocultar" : "Mostrar";
+                toggle.setAttribute("aria-pressed", String(visible));
+            });
+        })();
+    </script>
 </body>
 </html>
-

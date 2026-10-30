@@ -1,0 +1,22 @@
+{% extends "administrador/base.html" %}
+{% set active_page = 'novedades' %}
+{% block title %}Eliminar novedades{% endblock %}
+{% block content %}
+<div class="admin-page-heading"><div><h1>Eliminar novedades</h1><p>Esta acción elimina únicamente filas de novedades.</p></div><a class="button button-secondary" href="{{ url_for('novedades_admin') }}">Volver a novedades</a></div>
+{% if error %}<div class="admin-data-notice" role="alert"><p>{{ error }}</p></div>{% endif %}
+{% if mensaje %}<div class="flash-message is-success" role="status">{{ mensaje }}</div>{% endif %}
+{% if cantidad is not none %}
+<section class="delete-confirm-card">
+    <h2>Se eliminarán todas las novedades</h2>
+    <p><strong>{{ cantidad }}</strong> registros, incluidos los archivados. No se podrán restaurar.</p>
+    <p>Trabajadores, usuarios, asistencia y visitas no se modifican.</p>
+    {% if cantidad > 0 %}
+    <form method="post" action="{{ url_for('eliminar_todas_novedades_admin') }}" onsubmit="return confirm('¿Eliminar permanentemente las {{ cantidad }} novedades? Esta acción no se puede deshacer.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-field"><label for="confirmacion-eliminar">Escribe ELIMINAR para continuar</label><input id="confirmacion-eliminar" name="confirmacion_texto" autocomplete="off" required></div>
+        <button class="button button-danger" type="submit">Eliminar las {{ cantidad }} novedades</button>
+    </form>
+    {% else %}<p>No hay novedades que eliminar.</p>{% endif %}
+</section>
+{% endif %}
+{% endblock %}

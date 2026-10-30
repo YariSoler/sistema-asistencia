@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Panel administrativo{% endblock %} | Control de Asistencia</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="admin-page">
+    <div class="admin-shell">
+        <aside class="admin-sidebar">
+            <a class="admin-brand" href="{{ url_for('dashboard_admin') }}">
+                <span class="brand-mark" aria-hidden="true">▦</span>
+                <span><strong>Control de Asistencia</strong><small>Panel administrativo</small></span>
+            </a>
+            <nav class="admin-nav" aria-label="Navegación administrativa">
+                <a class="{{ 'is-active' if active_page == 'dashboard' else '' }}" href="{{ url_for('dashboard_admin') }}"><span aria-hidden="true">▥</span> Dashboard</a>
+                <a class="{{ 'is-active' if active_page == 'trabajadores' else '' }}" href="{{ url_for('personas') }}"><span aria-hidden="true">♙</span> Trabajadores</a>
+                <a class="{{ 'is-active' if active_page == 'novedades' else '' }}" href="{{ url_for('novedades_admin') }}"><span aria-hidden="true">▤</span> Novedades</a>
+                <a class="{{ 'is-active' if active_page == 'reportes' else '' }}" href="{{ url_for('reportes_admin') }}"><span aria-hidden="true">▧</span> Reportes</a>
+                <a class="{{ 'is-active' if active_page == 'usuarios' else '' }}" href="{{ url_for('usuarios') }}"><span aria-hidden="true">♧</span> Usuarios</a>
+            </nav>
+            <form class="admin-sidebar-logout" action="{{ url_for('cerrar_sesion') }}" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit">↪ <span>Cerrar sesión</span></button>
+            </form>
+        </aside>
+        <section class="admin-workspace">
+            <header class="admin-topbar">
+                <div><strong>Control de Asistencia</strong><small>Administrador: {{ correo or 'Sesión activa' }}</small></div>
+                <form action="{{ url_for('cerrar_sesion') }}" method="post" class="admin-topbar-logout">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit">↪ <span>Salir</span></button>
+                </form>
+            </header>
+            <main class="admin-content">
+                {% with mensajes = get_flashed_messages(with_categories=true) %}
+                    {% if mensajes %}<div class="admin-flashes" role="status" aria-live="polite">{% for categoria, mensaje in mensajes %}<p class="flash-message {{ 'is-success' if categoria == 'success' else '' }}">{{ mensaje }}</p>{% endfor %}</div>{% endif %}
+                {% endwith %}
+                {% block content %}{% endblock %}
+            </main>
+        </section>
+    </div>
+</body>
+</html>

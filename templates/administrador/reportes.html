@@ -1,0 +1,27 @@
+{% extends "administrador/base.html" %}
+{% set active_page = 'reportes' %}
+{% block title %}Reportes de asistencia{% endblock %}
+{% block content %}
+<div class="admin-page-heading"><div><h1>Reportes</h1><p>Consulta los registros de asistencia por periodo y trabajador.</p></div></div>
+{% if error %}<div class="admin-data-notice" role="status"><p>{{ error }}</p></div>{% endif %}
+<form class="admin-filter-card report-filters" method="get" action="{{ url_for('reportes_admin') }}">
+    <div class="form-field"><label for="reporte-desde">Desde</label><input id="reporte-desde" name="desde" type="date" required value="{{ desde }}"></div>
+    <div class="form-field"><label for="reporte-hasta">Hasta</label><input id="reporte-hasta" name="hasta" type="date" required value="{{ hasta }}"></div>
+    <div class="form-field"><label for="reporte-trabajador">Trabajador</label><select id="reporte-trabajador" name="trabajador_id"><option value="">Todos</option>{% for trabajador in trabajadores %}<option value="{{ trabajador.id }}" {% if trabajador_id|string == trabajador.id|string %}selected{% endif %}>{{ trabajador.nombre }} · {{ trabajador.identificacion }}</option>{% endfor %}</select></div>
+    <div class="form-actions"><button class="button button-primary" type="submit">Consultar</button><button class="button button-secondary" type="submit" name="formato" value="csv">Descargar CSV</button></div>
+</form>
+<div class="section-title"><h2>Registros</h2><span class="muted">Las horas se muestran en Colombia (UTC−5).</span></div>
+<div class="table-card"><div class="table-scroll"><table class="admin-table">
+    <thead><tr><th>FECHA</th><th>TRABAJADOR</th><th>COT</th><th>PROYECTO</th><th>ENTRADA · COLOMBIA</th><th>SALIDA · COLOMBIA</th></tr></thead>
+    <tbody>{% for fila in registros %}<tr>
+        <td>{{ fila.entrada_local[:10] }}</td><td><strong>{{ fila.trabajador_nombre }}</strong></td>
+        <td>{{ fila.cot or '—' }}</td><td>{{ fila.proyecto or '—' }}</td>
+        <td>{{ fila.entrada_local[11:] }}</td><td>{{ fila.salida_local[11:] if fila.salida_local != '—' else '—' }}</td>
+    </tr>{% else %}<tr><td colspan="6" class="empty-cell">No hay registros para el periodo seleccionado.</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<nav class="table-pagination" aria-label="Paginación de reportes">
+    {% if pagina > 1 %}<a class="button button-secondary" href="{{ url_for('reportes_admin', desde=desde, hasta=hasta, trabajador_id=trabajador_id, pagina=pagina - 1) }}">Anterior</a>{% endif %}
+    <span>Página {{ pagina }}</span>
+    {% if hay_siguiente %}<a class="button button-secondary" href="{{ url_for('reportes_admin', desde=desde, hasta=hasta, trabajador_id=trabajador_id, pagina=pagina + 1) }}">Siguiente</a>{% endif %}
+</nav>
+{% endblock %}

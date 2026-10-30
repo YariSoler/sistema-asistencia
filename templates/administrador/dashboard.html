@@ -1,34 +1,55 @@
+{% extends "administrador/base.html" %}
+{% set active_page = 'dashboard' %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="admin-page-heading">
+    <div><h1>Dashboard</h1><p>Jornada de Colombia: {{ hoy }}. Se actualiza al abrir y cada 5 minutos.</p></div>
+    <a class="button button-secondary" href="{{ url_for('dashboard_admin') }}">Actualizar ahora</a>
+</div>
 
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard | Sistema de Asistencia</title>
-</head>
-<body>
-    <header>
-        <h1>Panel del administrador</h1>
-        <p>Gestión del sistema de asistencia</p>
-    </header>
+{% if errores %}<div class="admin-data-notice" role="status">{% for error in errores %}<p>{{ error }}</p>{% endfor %}</div>{% endif %}
+<p class="dashboard-updated {{ 'is-stale' if datos_desactualizados else '' }}" aria-live="polite">
+    {% if ultima_actualizacion %}{{ 'Últimos datos confirmados' if datos_desactualizados else 'Actualizado' }}: {{ ultima_actualizacion }}{% if datos_desactualizados and fecha_datos %} · jornada {{ fecha_datos }}{% endif %}{% else %}Sin actualización confirmada todavía.{% endif %}
+</p>
 
-    <main>
-        <h2>Bienvenido al área administrativa</h2>
-        <p>Desde aquí podrás gestionar los recursos del sistema.</p>
+<section class="metric-grid" aria-label="Indicadores del día">
+    <article class="metric-card"><span>TRABAJADORES ACTIVOS</span><strong>{{ metricas.trabajadores_activos if metricas.trabajadores_activos is not none else '—' }}</strong></article>
+    <article class="metric-card metric-card--green"><span>PRESENTES EN LA JORNADA</span><strong>{{ metricas.presentes if metricas.presentes is not none else '—' }}</strong></article>
+    <article class="metric-card metric-card--coral"><span>AUSENCIAS INJUSTIFICADAS REPORTADAS</span><strong>{{ metricas.ausencias_injustificadas if metricas.ausencias_injustificadas is not none else '—' }}</strong></article>
+    <article class="metric-card metric-card--orange"><span>NOVEDADES VIGENTES HOY</span><strong>{{ metricas.novedades_vigentes if metricas.novedades_vigentes is not none else '—' }}</strong></article>
+</section>
+<p class="dashboard-definition">“Presente” cuenta trabajadores activos con entrada durante esta fecha en Bogotá o con un turno anterior que sigue abierto. Una salida tardía cerrada no cuenta como nueva asistencia. Las ausencias cuentan únicamente reportes injustificados explícitos; sin calendario de turnos no se infieren ausencias del resto del personal.</p>
 
-        <nav aria-label="Menú administrativo">
-            <ul>
-                <li><a href="/personas">Trabajadores y perfiles</a></li>
-                <li><a href="{{ url_for('usuarios') }}">Usuarios y accesos</a></li>
-                <li><a href="/novedades">Novedades</a></li>
-                <li><a href="/reportes">Reportes</a></li>
-            </ul>
-        </nav>
+<section class="admin-section">
+    <div class="section-title"><h2>Asistencia por proyecto hoy</h2><span class="muted">Cada entrada conserva su propio tramo</span></div>
+    <div class="table-card">
+        <div class="table-scroll"><table class="admin-table">
+            <thead><tr><th>COT</th><th>PROYECTO</th><th>TRAMOS</th><th>ABIERTOS</th></tr></thead>
+            <tbody>
+            {% for fila in proyectos %}<tr><td><strong>{{ fila.cot or 'Sin COT' }}</strong></td><td>{{ fila.proyecto or 'Sin proyecto' }}</td><td>{{ fila.tramos }}</td><td class="count-green">{{ fila.abiertos }}</td></tr>
+            {% else %}<tr><td colspan="4" class="empty-cell">No hay tramos de asistencia registrados para hoy.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div>
+</section>
 
-        <form action="/cerrar-sesion" method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit">Cerrar sesión</button>
-        </form>
-    </main>
-</body>
-</html>
+<section class="admin-section">
+    <div class="section-title"><h2>Novedades recientes</h2><a class="text-link" href="{{ url_for('novedades_admin') }}">Ver módulo de novedades →</a></div>
+    {% if novedades_disponibles %}
+        <div class="recent-list">
+            {% for novedad in novedades_recientes %}
+            <article class="recent-novelty">
+                <div><strong>{{ novedad.trabajador_nombre }}</strong><p>{{ novedad.fecha_inicio }}{% if novedad.fecha_fin != novedad.fecha_inicio %} – {{ novedad.fecha_fin }}{% endif %} · {{ novedad.proyecto or novedad.cot or 'Sin proyecto' }} · {{ novedad.motivo }}</p></div>
+                <span class="novelty-pill novelty-pill--{{ novedad.color }}">{{ novedad.tipo_etiqueta }}</span>
+            </article>
+            {% endfor %}
+        </div>
+        {% if not novedades_recientes %}<div class="table-card empty-state">No hay novedades vigentes para hoy.</div>{% endif %}
+    {% else %}
+        <div class="admin-data-notice"><p>No fue posible consultar las novedades recientes. Intenta actualizar más tarde.</p></div>
+    {% endif %}
+</section>
+<script>
+    window.setTimeout(() => window.location.reload(), 5 * 60 * 1000);
+</script>
+{% endblock %}

@@ -1,0 +1,71 @@
+{% extends "administrador/base.html" %}
+{% set active_page = 'novedades' %}
+{% block title %}Novedades{% endblock %}
+{% block content %}
+<div class="admin-page-heading">
+    <div><h1>Novedades</h1><p>Consulta y registro administrativo de novedades del personal.</p></div>
+    <div class="form-actions"><a class="button button-danger" href="{{ url_for('eliminar_todas_novedades_admin') }}">Eliminar todas las novedades</a><a class="button button-secondary" href="{{ url_for('archivo_novedades_admin') }}">Consultar archivo</a></div>
+</div>
+{% if errores %}<div class="admin-data-notice" role="status">{% for error in errores %}<p>{{ error }}</p>{% endfor %}</div>{% endif %}
+
+<section class="admin-section">
+    <div class="section-title"><h2>Registrar novedad</h2><span class="muted">El registro conserva el motivo y el responsable</span></div>
+    <form class="admin-filter-card novelty-form" method="post" action="{{ url_for('novedades_admin') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-field form-field--wide"><label for="novedad-trabajador">Trabajador</label>
+            <select id="novedad-trabajador" name="trabajador_id" required>
+                <option value="">Selecciona una persona</option>
+                {% for trabajador in trabajadores %}
+                <option value="{{ trabajador.id }}" {% if form_data.get('trabajador_id', '')|string == trabajador.id|string %}selected{% endif %}>{{ trabajador.nombre }} · {{ trabajador.cargo or 'Sin cargo' }}{% if trabajador.estado != 'activo' %} · Inactivo{% endif %}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-field"><label for="novedad-tipo">Tipo de novedad</label>
+            <select id="novedad-tipo" name="tipo" required>
+                <option value="">Selecciona tipo</option>
+                {% for key, (label, color) in tipos_novedad.items() %}<option value="{{ key }}" {% if form_data.get('tipo') == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="form-field"><label for="novedad-fecha-inicio">Fecha inicial</label><input id="novedad-fecha-inicio" name="fecha_inicio" type="date" required value="{{ form_data.get('fecha_inicio', '') }}"></div>
+        <div class="form-field"><label for="novedad-fecha-fin">Fecha final</label><input id="novedad-fecha-fin" name="fecha_fin" type="date" required value="{{ form_data.get('fecha_fin', '') }}"></div>
+        <div class="form-field form-field--wide"><label for="novedad-motivo">Motivo</label><textarea id="novedad-motivo" name="motivo" maxlength="1000" rows="2" required>{{ form_data.get('motivo', '') }}</textarea></div>
+        <div class="form-field form-field--wide"><label for="novedad-observaciones">Observaciones adicionales (opcional)</label><textarea id="novedad-observaciones" name="observaciones" maxlength="2000" rows="2">{{ form_data.get('observaciones', '') }}</textarea></div>
+        <div class="form-field form-field--wide form-actions"><button class="button button-primary" type="submit">Guardar novedad</button></div>
+    </form>
+</section>
+
+<section class="admin-section">
+    <div class="section-title"><h2>Consultar novedades</h2><span class="muted">Filtra por periodo, trabajador o tipo</span></div>
+    <form class="admin-filter-card novelty-filters" method="get" action="{{ url_for('novedades_admin') }}">
+        <div class="form-field"><label for="filtro-desde">Desde</label><input id="filtro-desde" name="desde" type="date" value="{{ filtros.get('desde', '') }}"></div>
+        <div class="form-field"><label for="filtro-hasta">Hasta</label><input id="filtro-hasta" name="hasta" type="date" value="{{ filtros.get('hasta', '') }}"></div>
+        <div class="form-field"><label for="filtro-trabajador">Trabajador</label><select id="filtro-trabajador" name="trabajador_id"><option value="">Todos</option>{% for trabajador in trabajadores %}<option value="{{ trabajador.id }}" {% if filtros.get('trabajador_id')|string == trabajador.id|string %}selected{% endif %}>{{ trabajador.nombre }}</option>{% endfor %}</select></div>
+        <div class="form-field"><label for="filtro-tipo">Tipo de novedad</label><select id="filtro-tipo" name="tipo"><option value="">Todas</option>{% for key, (label, color) in tipos_filtro.items() %}<option value="{{ key }}" {% if filtros.get('tipo') == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="form-actions"><button class="button button-primary" type="submit">Aplicar filtros</button><a class="button button-secondary" href="{{ url_for('novedades_admin') }}">Limpiar</a></div>
+    </form>
+    <p class="muted novelty-history-note">Las categorías antiguas se conservan y se etiquetan como históricas; no se eliminan al simplificar el formulario.</p>
+    <div class="table-card">
+        <div class="table-scroll"><table class="admin-table novelty-table">
+            <thead><tr><th>FECHA</th><th>TRABAJADOR</th><th>PROYECTO / COT</th><th>TIPO</th><th>HORARIO HISTÓRICO</th><th>MOTIVO Y OBSERVACIONES</th><th>REGISTRO</th></tr></thead>
+            <tbody>
+            {% for novedad in novedades %}
+            <tr>
+                <td>{{ novedad.fecha_inicio }}{% if novedad.fecha_fin != novedad.fecha_inicio %}<br><span class="muted">al {{ novedad.fecha_fin }}</span>{% endif %}</td>
+                <td><strong>{{ novedad.trabajador_nombre }}</strong></td>
+                <td>{{ novedad.proyecto or '—' }}{% if novedad.cot %}<br><span class="muted">{{ novedad.cot }}</span>{% endif %}</td>
+                <td><span class="novelty-pill novelty-pill--{{ novedad.color }}">{{ novedad.tipo_etiqueta }}</span></td>
+                <td>{% if novedad.hora_inicio or novedad.hora_fin %}{{ novedad.hora_inicio or '—' }} – {{ novedad.hora_fin or '—' }}{% else %}—{% endif %}</td>
+                <td><strong>{{ novedad.motivo }}</strong>{% if novedad.observaciones %}<br><span class="muted">{{ novedad.observaciones }}</span>{% endif %}</td>
+                <td><span class="state-pill">{{ novedad.estado }}</span><br><span class="muted">{{ novedad.creado_en }}</span></td>
+            </tr>
+            {% else %}<tr><td colspan="7" class="empty-cell">No se encontraron novedades con estos filtros.</td></tr>{% endfor %}
+            </tbody>
+        </table></div>
+    </div>
+    <nav class="table-pagination" aria-label="Paginación de novedades">
+        {% if pagina > 1 %}<a class="button button-secondary" href="{{ url_for('novedades_admin', desde=filtros.get('desde'), hasta=filtros.get('hasta'), trabajador_id=filtros.get('trabajador_id'), tipo=filtros.get('tipo'), pagina=pagina - 1) }}">Anterior</a>{% endif %}
+        <span>Página {{ pagina }}</span>
+        {% if hay_siguiente %}<a class="button button-secondary" href="{{ url_for('novedades_admin', desde=filtros.get('desde'), hasta=filtros.get('hasta'), trabajador_id=filtros.get('trabajador_id'), tipo=filtros.get('tipo'), pagina=pagina + 1) }}">Siguiente</a>{% endif %}
+    </nav>
+</section>
+{% endblock %}
