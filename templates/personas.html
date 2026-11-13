@@ -10,7 +10,7 @@
     <label class="sr-only" for="buscar-persona">Buscar trabajador</label>
     <input id="buscar-persona" name="q" placeholder="Buscar trabajador" value="{{ request.args.get('q', '') }}">
 </form>
-<div class="table-card"><div class="table-scroll"><table class="admin-table">
+<div class="table-card people-table-card"><div class="table-scroll"><table class="admin-table people-table">
     <thead><tr><th>NOMBRE</th><th>IDENTIFICACIÓN</th><th>CARGO</th><th>ESTADO</th><th>QR / ACCIONES</th></tr></thead>
     <tbody>
     {% for persona in personas %}
@@ -18,11 +18,11 @@
         <td><strong>{{ persona.nombre }}</strong></td><td>{{ persona.identificacion or 'Sin identificación' }}</td><td>{{ persona.cargo or 'Sin cargo' }}</td>
         <td><span class="state-pill {{ 'is-inactive' if persona.estado != 'activo' else '' }}">{{ persona.estado or 'Sin estado' }}</span></td>
         <td class="people-actions">
-            {% if persona.perfil in ('trabajador', 'coordinador') and persona.qr %}<a class="button button-table" href="{{ url_for('ver_qr_persona', persona_id=persona.id) }}">Ver / imprimir QR</a>
-            {% elif persona.perfil in ('trabajador', 'coordinador') %}<form action="{{ url_for('generar_qr_persona', persona_id=persona.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button-table" type="submit">Generar QR</button></form>
+            {% if persona.perfil in ('trabajador', 'coordinador') and persona.qr %}<a class="button button-table button-qr" href="{{ url_for('ver_qr_persona', persona_id=persona.id) }}">Ver / imprimir QR</a>
+            {% elif persona.perfil in ('trabajador', 'coordinador') %}<form action="{{ url_for('generar_qr_persona', persona_id=persona.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button-table button-qr" type="submit">Generar QR</button></form>
             {% else %}<span class="muted">No aplica</span>{% endif %}
-            <a class="button button-table" href="{{ url_for('editar_persona', persona_id=persona.id) }}">Editar</a>
-            <form action="{{ url_for('cambiar_estado_persona', persona_id=persona.id) }}" method="post" onsubmit="return confirm('¿{{ 'Desactivar' if persona.estado == 'activo' else 'Activar' }} a esta persona? Se conserva su historial.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="confirmar_estado" value="si"><input type="hidden" name="estado" value="{{ 'inactivo' if persona.estado == 'activo' else 'activo' }}"><button class="button button-table" type="submit">{{ 'Desactivar' if persona.estado == 'activo' else 'Activar' }}</button></form>
+            <a class="button button-table button-edit" href="{{ url_for('editar_persona', persona_id=persona.id) }}">Editar</a>
+            <form action="{{ url_for('cambiar_estado_persona', persona_id=persona.id) }}" method="post" onsubmit="return confirm('¿{{ 'Desactivar' if persona.estado == 'activo' else 'Activar' }} a esta persona? Se conserva su historial.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="confirmar_estado" value="si"><input type="hidden" name="estado" value="{{ 'inactivo' if persona.estado == 'activo' else 'activo' }}"><button class="button button-table {{ 'button-deactivate' if persona.estado == 'activo' else 'button-activate' }}" type="submit">{{ 'Desactivar' if persona.estado == 'activo' else 'Activar' }}</button></form>
             {% if persona.nombre != 'Persona eliminada' %}<form action="{{ url_for('eliminar_persona', persona_id=persona.id) }}" method="post" onsubmit="return confirm('¿Eliminar a esta persona? Se quitarán sus datos personales y acceso. Se conservarán sus asistencias, visitas y novedades de forma anonimizada.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="confirmar_eliminacion" value="si"><button class="button button-table button-danger" type="submit">Eliminar</button></form>{% endif %}
         </td>
     </tr>

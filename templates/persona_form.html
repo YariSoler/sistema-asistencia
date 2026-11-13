@@ -4,49 +4,70 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ 'Editar trabajador' if persona else 'Registrar trabajador' }} | Control de Asistencia</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
-    <h1>{{ 'Editar registro' if persona else 'Registrar trabajador' }}</h1>
-    <p><a href="{{ url_for('personas') }}">Volver al listado</a></p>
-    {% with mensajes = get_flashed_messages() %}
-      {% if mensajes %}<div role="alert" aria-live="assertive">{% for mensaje in mensajes %}<p>{{ mensaje }}</p>{% endfor %}</div>{% endif %}
-    {% endwith %}
-    <form method="post">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div><label for="identificacion">Identificación</label><br>
-            <input id="identificacion" name="identificacion" maxlength="80" required value="{{ request.form.get('identificacion', persona.identificacion if persona else '') }}"></div>
-        <div><label for="nombre">Nombre completo</label><br>
-            <input id="nombre" name="nombre" maxlength="160" required value="{{ request.form.get('nombre', persona.nombre if persona else '') }}"></div>
-        <div><label for="cargo">Cargo</label><br>
-            <select id="cargo" name="cargo" required {% if persona and persona.auth_user_id %}disabled{% endif %}>
-                {% for cargo in ['SST', 'Operario', 'Coordinador', 'Administrador'] %}
-                    {% set actual = request.form.get('cargo', persona.cargo if persona else 'Operario') %}
-                    <option value="{{ cargo }}" {% if actual == cargo %}selected{% endif %}>{{ cargo }}</option>
-                {% endfor %}
-            </select>
-            {% if persona and persona.auth_user_id %}<input type="hidden" name="cargo" value="{{ persona.cargo }}">{% endif %}
-            <small>Los cargos de coordinador y administrador requieren una cuenta de acceso vinculada.</small>
-        </div>
-        <div><label for="estado">Estado</label><br>
-            {% set estado_actual = request.form.get('estado', persona.estado if persona else 'activo') %}
-            <select id="estado" name="estado" required>
-                <option value="activo" {% if estado_actual == 'activo' %}selected{% endif %}>Activo</option>
-                <option value="inactivo" {% if estado_actual == 'inactivo' %}selected{% endif %}>Inactivo</option>
-            </select>
-        </div>
-        {% if not persona %}
-        <fieldset id="datos-acceso" hidden>
-            <legend>Cuenta de acceso</legend>
-            <p>Este correo y contraseña se enviarán directamente a Supabase Auth desde el servidor. La cuenta quedará confirmada para iniciar sesión; verifica que el correo pertenece a la persona. La contraseña no se guarda en trabajadores ni se muestra de nuevo.</p>
-            <div><label for="correo">Correo electrónico</label><br>
-                <input id="correo" name="correo" type="email" maxlength="254" autocomplete="username" value="{{ request.form.get('correo', '') }}"></div>
-            <div><label for="contrasena">Contraseña inicial</label><br>
-                <input id="contrasena" name="contrasena" type="password" autocomplete="new-password"></div>
-        </fieldset>
-        {% endif %}
-        <p>El perfil se asigna automáticamente según el cargo. SST y Operario no tienen cuenta de inicio de sesión.</p>
-        <button type="submit">{{ 'Guardar cambios' if persona else 'Registrar trabajador' }}</button>
-    </form>
+<body class="person-form-page">
+    <main class="person-form-main">
+        <header class="person-form-heading">
+            <p class="eyebrow">Gestión de personal</p>
+            <h1>{{ 'Editar registro' if persona else 'Registrar trabajador' }}</h1>
+            <p>Completa la información de la persona para mantener actualizado el equipo.</p>
+        </header>
+
+        <p class="person-form-back"><a class="button button-secondary" href="{{ url_for('personas') }}">← <span>Volver al listado</span></a></p>
+
+        {% with mensajes = get_flashed_messages() %}
+          {% if mensajes %}<div class="person-form-alert" role="alert" aria-live="assertive">{% for mensaje in mensajes %}<p>{{ mensaje }}</p>{% endfor %}</div>{% endif %}
+        {% endwith %}
+
+        <form class="person-form-card" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="person-form-grid">
+                <div class="person-form-field">
+                    <label for="identificacion">Identificación</label>
+                    <input id="identificacion" name="identificacion" maxlength="80" required value="{{ request.form.get('identificacion', persona.identificacion if persona else '') }}">
+                </div>
+                <div class="person-form-field">
+                    <label for="nombre">Nombre completo</label>
+                    <input id="nombre" name="nombre" maxlength="160" required value="{{ request.form.get('nombre', persona.nombre if persona else '') }}">
+                </div>
+                <div class="person-form-field">
+                    <label for="cargo">Cargo</label>
+                    <select id="cargo" name="cargo" required {% if persona and persona.auth_user_id %}disabled{% endif %}>
+                        {% for cargo in ['SST', 'Operario', 'Coordinador', 'Administrador'] %}
+                            {% set actual = request.form.get('cargo', persona.cargo if persona else 'Operario') %}
+                            <option value="{{ cargo }}" {% if actual == cargo %}selected{% endif %}>{{ cargo }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if persona and persona.auth_user_id %}<input type="hidden" name="cargo" value="{{ persona.cargo }}">{% endif %}
+                    <small>Coordinador y Administrador requieren una cuenta de acceso vinculada.</small>
+                </div>
+                <div class="person-form-field">
+                    <label for="estado">Estado</label>
+                    {% set estado_actual = request.form.get('estado', persona.estado if persona else 'activo') %}
+                    <select id="estado" name="estado" required>
+                        <option value="activo" {% if estado_actual == 'activo' %}selected{% endif %}>Activo</option>
+                        <option value="inactivo" {% if estado_actual == 'inactivo' %}selected{% endif %}>Inactivo</option>
+                    </select>
+                </div>
+            </div>
+            {% if not persona %}
+            <fieldset id="datos-acceso" class="person-access-fields" hidden>
+                <legend>Cuenta de acceso</legend>
+                <p>Este correo y contraseña se enviarán directamente a Supabase Auth desde el servidor. La cuenta quedará confirmada para iniciar sesión; verifica que el correo pertenece a la persona. La contraseña no se guarda en trabajadores ni se muestra de nuevo.</p>
+                <div class="person-form-grid">
+                    <div class="person-form-field"><label for="correo">Correo electrónico</label><input id="correo" name="correo" type="email" maxlength="254" autocomplete="username" value="{{ request.form.get('correo', '') }}"></div>
+                    <div class="person-form-field"><label for="contrasena">Contraseña inicial</label><input id="contrasena" name="contrasena" type="password" autocomplete="new-password"></div>
+                </div>
+            </fieldset>
+            {% endif %}
+            <p class="person-form-note">El perfil se asigna automáticamente según el cargo. SST y Operario no tienen cuenta de inicio de sesión.</p>
+            <div class="person-form-actions">
+                <button class="button button-primary" type="submit">{{ 'Guardar cambios' if persona else 'Registrar trabajador' }}</button>
+                <a class="button button-secondary" href="{{ url_for('personas') }}">Cancelar</a>
+            </div>
+        </form>
+    </main>
     {% if not persona %}
     <script>
         const cargo = document.getElementById('cargo');
