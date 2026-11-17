@@ -23,10 +23,10 @@ except ImportError:
 
 import app as asistencia_app  # noqa: E402
 
-ACT06_BASE_MIGRATION = PROJECT_ROOT / "supabase/migrations/20261022_act06_asistencia_visitas.sql"
-if not ACT06_BASE_MIGRATION.exists():
+ATTENDANCE_BASE_MIGRATION = PROJECT_ROOT / "supabase/migrations/20261022_act06_asistencia_visitas.sql"
+if not ATTENDANCE_BASE_MIGRATION.exists():
     # The checked-in migration source was kept in the dated backup only.
-    ACT06_BASE_MIGRATION = PROJECT_ROOT / "backups/act06-field-improvements-20261023/supabase/migrations/20261022_act06_asistencia_visitas.sql"
+    ATTENDANCE_BASE_MIGRATION = PROJECT_ROOT / "backups/act06-field-improvements-20261023/supabase/migrations/20261022_act06_asistencia_visitas.sql"
 
 
 class ProteccionCsrfTests(unittest.TestCase):
@@ -100,7 +100,7 @@ class ProteccionCsrfTests(unittest.TestCase):
         self.assertIn(b"static/js/asistencia.js", response.data)
 
 
-class ReglasAct06Tests(unittest.TestCase):
+class AttendanceRulesTests(unittest.TestCase):
     def test_clave_privilegiada_no_aparece_en_recursos_publicos(self):
         public_roots = [PROJECT_ROOT / "templates", PROJECT_ROOT / "static"]
         for root in public_roots:
@@ -109,25 +109,25 @@ class ReglasAct06Tests(unittest.TestCase):
                     self.assertNotIn("SUPABASE_SERVICE_ROLE_KEY", path.read_text(encoding="utf-8"))
 
     def test_migracion_define_turno_unico_y_rechazo_idempotente(self):
-        sql = ACT06_BASE_MIGRATION.read_text(encoding="utf-8")
+        sql = ATTENDANCE_BASE_MIGRATION.read_text(encoding="utf-8")
         self.assertIn("trabajadores_qr_uidx", sql)
         self.assertIn("WHERE fecha_salida IS NULL", sql)
         self.assertIn("IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_DATA", sql)
         self.assertIn("precision_m IS NOT DISTINCT FROM EXCLUDED.precision_m", sql)
 
     def test_migracion_solo_permite_asistencia_del_coordinador_para_si_mismo(self):
-        sql = ACT06_BASE_MIGRATION.read_text(encoding="utf-8")
+        sql = ATTENDANCE_BASE_MIGRATION.read_text(encoding="utf-8")
         self.assertIn("perfil = 'coordinador' AND id = p_coordinador_id", sql)
         self.assertIn("PERSONA_NO_AUTORIZADA_PARA_ENTRADA", sql)
         self.assertIn("PERSONA_NO_AUTORIZADA_PARA_SALIDA", sql)
 
     def test_regla_de_salida_para_persona_inactiva_esta_documentada(self):
-        docs = (PROJECT_ROOT / "docs/ACT06-seguridad-y-reglas.md").read_text(encoding="utf-8")
-        self.assertIn("Puede escanearse su QR únicamente para cerrar esa entrada pendiente", docs)
-        self.assertIn("No se borran ni se reescriben filas históricas", docs)
+        docs = (PROJECT_ROOT / "docs/attendance-security.md").read_text(encoding="utf-8")
+        self.assertIn("La salida puede cerrar la entrada que ya estaba abierta", docs)
+        self.assertIn("los tramos históricos no se borran ni se reescriben", docs)
 
 
-class RutasAct06Tests(unittest.TestCase):
+class AttendanceRoutesTests(unittest.TestCase):
     def setUp(self):
         asistencia_app.app.config.update(TESTING=True)
         self.client = asistencia_app.app.test_client()

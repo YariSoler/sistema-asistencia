@@ -512,7 +512,7 @@ def validar_evento_offline(datos, tipo, coordinador_id, persona_id=None, cot=Non
         "precision_m": precision,
     }
     if nota:
-        # Preserve the hash of queued ACT06 operations that have no note.
+        # Preserve the hash of queued offline operations that have no note.
         canonico["observaciones"] = nota
     payload_hash = hashlib.sha256(
         json.dumps(canonico, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
@@ -1391,7 +1391,7 @@ def service_worker():
 
 
 # =========================================================
-# 8. REGISTRO DE ASISTENCIA Y VISITAS (ACT06)
+# 8. REGISTRO DE ASISTENCIA Y VISITAS
 # =========================================================
 
 @app.route("/api/asistencia/qr", methods=["POST"])
@@ -1602,7 +1602,7 @@ def registrar_entrada_asistencia():
             argumentos["p_observaciones"] = evento["observaciones"]
             funcion = "registrar_entrada_asistencia_act07"
         else:
-            # Conserva compatibilidad con el RPC ACT06 si la nota está vacía.
+            # Conserva compatibilidad con el RPC offline vigente si la nota está vacía.
             funcion = "registrar_entrada_asistencia_offline"
         respuesta = supabase.rpc(funcion, argumentos).execute()
     except Exception as exc:

@@ -17,7 +17,7 @@ os.environ.setdefault("FLASK_SECRET_KEY", "test-flask-secret")
 try:
     import qrcode  # noqa: F401
 except ImportError:
-    # The ACT07 tests do not generate QR images; keep the import isolated when
+    # These route tests do not generate QR images; keep the import isolated when
     # the optional image dependency is unavailable in a minimal test runtime.
     sys.modules["qrcode"] = types.ModuleType("qrcode")
 
@@ -85,9 +85,9 @@ class RutasNovedadTests(unittest.TestCase):
         asistencia_app._DASHBOARD_CACHE = None
         self.client = asistencia_app.app.test_client()
         with self.client.session_transaction() as sess:
-            sess["_csrf_token"] = "csrf-act07"
+            sess["_csrf_token"] = "csrf-novedades"
             sess["trabajador_id"] = 5
-        self.headers = {"csrf_token": "csrf-act07"}
+        self.headers = {"csrf_token": "csrf-novedades"}
 
     def test_coordinador_no_puede_consultar_novedades(self):
         with patch.object(asistencia_app, "requiere_perfil", return_value=asistencia_app.redirect("/panel")):
@@ -410,7 +410,7 @@ class RutasNovedadTests(unittest.TestCase):
         instante = asistencia_app.datetime(2026, 10, 29, 4, 30, tzinfo=asistencia_app.timezone.utc)
         self.assertEqual(asistencia_app.fecha_actual_bogota(instante).isoformat(), "2026-10-28")
 
-    def test_entrada_con_observacion_usa_wrapper_act07_y_conserva_el_uuid(self):
+    def test_entrada_con_observacion_usa_wrapper_vigente_y_conserva_el_uuid(self):
         rpc = MagicMock()
         rpc.execute.return_value = SimpleNamespace(data={"id": 21, "trabajador_id": 12})
         trabajador = {"id": 12, "nombre": "Prueba", "perfil": "trabajador", "estado": "activo"}
@@ -421,13 +421,13 @@ class RutasNovedadTests(unittest.TestCase):
                 "trabajador_id": 12, "cot": "COT-3", "proyecto": "Proyecto Norte",
                 "observaciones": "Cambio de turno", "ubicacion_estado": "no_disponible",
                 "ocurrio_en": "2026-10-28T12:00:00Z", "operacion_id": "12345678-1234-4234-8234-123456789abc",
-            }, headers={"X-CSRF-Token": "csrf-act07"})
+            }, headers={"X-CSRF-Token": "csrf-novedades"})
         self.assertEqual(response.status_code, 201)
         self.assertEqual(llamada_rpc.call_args.args[0], "registrar_entrada_asistencia_act07")
         self.assertEqual(llamada_rpc.call_args.args[1]["p_observaciones"], "Cambio de turno")
         self.assertEqual(response.get_json()["operacion_id"], "12345678-1234-4234-8234-123456789abc")
 
-    def test_salida_con_observacion_usa_wrapper_act07_y_conserva_el_uuid(self):
+    def test_salida_con_observacion_usa_wrapper_vigente_y_conserva_el_uuid(self):
         rpc = MagicMock()
         rpc.execute.return_value = SimpleNamespace(data={"id": 21, "trabajador_id": 12})
         trabajador = {"id": 12, "nombre": "Prueba", "perfil": "trabajador", "estado": "activo"}
@@ -438,7 +438,7 @@ class RutasNovedadTests(unittest.TestCase):
                 "trabajador_id": 12, "observaciones": "Fin de turno en obra",
                 "ubicacion_estado": "no_disponible", "ocurrio_en": "2026-10-28T20:00:00Z",
                 "operacion_id": "12345678-1234-4234-8234-123456789abd",
-            }, headers={"X-CSRF-Token": "csrf-act07"})
+            }, headers={"X-CSRF-Token": "csrf-novedades"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(llamada_rpc.call_args.args[0], "registrar_salida_asistencia_act07")
         self.assertEqual(llamada_rpc.call_args.args[1]["p_observaciones"], "Fin de turno en obra")
@@ -470,7 +470,7 @@ class RutasNovedadTests(unittest.TestCase):
         self.assertEqual(len(payload["dedupe_key"]), 64)
         self.assertTrue(response.headers["Location"].endswith("/novedades"))
 
-    def test_migracion_act07_es_aditiva_y_no_recrea_historial(self):
+    def test_migracion_de_tramos_es_aditiva_y_no_recrea_historial(self):
         sql = (ROOT / "supabase/migrations/20261028_act07_novedades_y_tramos.sql").read_text(encoding="utf-8").lower()
         self.assertIn("create table if not exists public.novedades", sql)
         self.assertIn("add column if not exists observaciones_entrada", sql)
@@ -492,7 +492,7 @@ class RutasNovedadTests(unittest.TestCase):
         self.assertNotIn("llegada_tarde", asistencia_app.NOVEDADES_TIPOS)
         self.assertNotIn("llegada_tarde", asistencia_app.NOVEDADES_TIPOS_PARA_FILTRO)
 
-    def test_modelo_act06_permite_tramos_sucesivos_sin_sobrescribir(self):
+    def test_modelo_de_asistencia_permite_tramos_sucesivos_sin_sobrescribir(self):
         sql = (ROOT / "backups/act06-field-improvements-20261023/supabase/migrations/20261022_act06_asistencia_visitas.sql").read_text(encoding="utf-8").lower()
         self.assertIn("create table if not exists public.registros_asistencia", sql)
         self.assertIn("fecha_entrada timestamptz", sql)

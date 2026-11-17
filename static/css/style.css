@@ -244,6 +244,20 @@ button { cursor: pointer; }
 .people-table-card .button-table.button-danger { color: #a52d27; background: #fff4f2; border-color: #efc2bd; }
 .people-table-card .button-table.button-danger:hover:not(:disabled) { background: #ffe5e1; border-color: #e7aaa2; }
 
+/* Acciones compactas de la tabla de usuarios, aisladas del resto del panel. */
+.users-table { min-width: 760px; }
+.users-table-card .user-actions { min-width: 285px; display: flex; align-items: center; flex-wrap: nowrap; gap: 7px; white-space: nowrap; }
+.users-table-card .user-actions form { display: flex; flex: 0 0 auto; margin: 0; }
+.users-table-card .user-action { flex: 0 0 84px; width: 84px; min-width: 84px; min-height: 32px; padding: 5px 7px; border-radius: 7px; font-size: 11px; font-weight: 650; line-height: 1.1; text-align: center; white-space: nowrap; }
+.users-table-card .user-action-edit { color: #fff; background: var(--olive); border-color: var(--olive); }
+.users-table-card .user-action-edit:hover:not(:disabled) { color: #fff; background: var(--olive-dark); border-color: var(--olive-dark); }
+.users-table-card .user-action-state { color: #475467; background: #f2f4f2; border-color: #d8ddd7; }
+.users-table-card .user-action-state:hover:not(:disabled) { color: #303a32; background: #e7ebe6; border-color: #c4ccc2; }
+.users-table-card .user-action-delete { color: #a33d37; background: #fff5f3; border-color: #edc9c4; }
+.users-table-card .user-action-delete:hover:not(:disabled) { color: #8e2f2a; background: #ffebe7; border-color: #e7b4ad; }
+.users-table-card .user-action:focus-visible { outline: 3px solid #92a873; outline-offset: 2px; }
+.users-table-card .user-action:disabled { cursor: not-allowed; opacity: .58; }
+
 /* Formulario de trabajadores: estilos aislados del resto de pantallas. */
 .person-form-page { min-height: 100vh; padding: 36px 16px 56px; background: var(--page); }
 .person-form-main { width: min(100%, 820px); margin: 0 auto; }

@@ -3,7 +3,7 @@
 {% block title %}Usuarios y accesos{% endblock %}
 {% block content %}
 <div class="admin-page-heading"><div><h1>Usuarios</h1><p>Gestión de accesos por rol y estado de cuenta.</p></div><a class="button button-primary" href="{{ url_for('nueva_persona') }}">＋ Crear usuario</a></div>
-<div class="table-card"><div class="table-scroll"><table class="admin-table">
+<div class="table-card users-table-card"><div class="table-scroll"><table class="admin-table users-table">
     <thead><tr><th>NOMBRE</th><th>USUARIO</th><th>ROL</th><th>ESTADO</th><th>ADMINISTRAR</th></tr></thead>
     <tbody>
     {% for usuario in usuarios %}
@@ -11,9 +11,9 @@
         <td><strong>{{ usuario.nombre }}</strong></td><td>{{ usuario.correo or 'Cuenta vinculada' }}</td>
         <td><span class="role-pill role-pill--{{ usuario.perfil }}">{{ usuario.perfil|upper }}</span></td>
         <td><span class="state-pill {{ 'is-inactive' if usuario.estado != 'activo' else '' }}">{{ usuario.estado or 'Sin estado' }}</span></td>
-        <td class="people-actions"><a class="button button-table" href="{{ url_for('editar_persona', persona_id=usuario.id) }}">Editar</a>
-            <form action="{{ url_for('cambiar_estado_persona', persona_id=usuario.id) }}" method="post" onsubmit="return confirm('¿{{ 'Desactivar' if usuario.estado == 'activo' else 'Activar' }} este acceso? Se conserva la cuenta y sus datos.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="confirmar_estado" value="si"><input type="hidden" name="estado" value="{{ 'inactivo' if usuario.estado == 'activo' else 'activo' }}"><button class="button button-table" type="submit">{{ 'Desactivar' if usuario.estado == 'activo' else 'Activar' }}</button></form>
-            <form action="{{ url_for('eliminar_persona', persona_id=usuario.id) }}" method="post" onsubmit="return confirm('¿Eliminar a esta persona? Se quitarán sus datos personales y acceso. Se conservarán sus asistencias, visitas y novedades de forma anonimizada.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="confirmar_eliminacion" value="si"><button class="button button-table button-danger" type="submit">Eliminar</button></form>
+        <td class="user-actions"><a class="button button-table user-action user-action-edit" href="{{ url_for('editar_persona', persona_id=usuario.id) }}">Editar</a>
+            <form action="{{ url_for('cambiar_estado_persona', persona_id=usuario.id) }}" method="post" onsubmit="return confirm('¿{{ 'Desactivar' if usuario.estado == 'activo' else 'Activar' }} este acceso? Se conserva la cuenta y sus datos.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="confirmar_estado" value="si"><input type="hidden" name="estado" value="{{ 'inactivo' if usuario.estado == 'activo' else 'activo' }}"><button class="button button-table user-action user-action-state" type="submit">{{ 'Desactivar' if usuario.estado == 'activo' else 'Activar' }}</button></form>
+            <form action="{{ url_for('eliminar_persona', persona_id=usuario.id) }}" method="post" onsubmit="return confirm('¿Eliminar a esta persona? Se quitarán sus datos personales y acceso. Se conservarán sus asistencias, visitas y novedades de forma anonimizada.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="confirmar_eliminacion" value="si"><button class="button button-table button-danger user-action user-action-delete" type="submit">Eliminar</button></form>
         </td>
     </tr>
     {% else %}<tr><td colspan="5" class="empty-cell">No hay cuentas vinculadas de coordinadores o administradores.</td></tr>{% endfor %}

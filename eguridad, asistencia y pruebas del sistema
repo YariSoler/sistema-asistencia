@@ -1,0 +1,16 @@
+M	.gitignore
+M	app.py
+A	docs/attendance-security.md
+A	docs/google-sheets-testing-plan.md
+A	docs/supabase-sync-migration-design.md
+A	docs/system-readiness.md
+M	static/css/style.css
+M	static/js/asistencia.js
+M	static/offline-shell.html
+A	supabase/diagnostics/supabase_readonly_diagnostic.sql
+M	templates/usuarios.html
+R099	tests/act06_client.test.cjs	tests/attendance_client.test.cjs
+R097	tests/test_act06_security.py	tests/test_attendance_security.py
+R097	tests/test_act07_novedades.py	tests/test_novedades.py
+R100	tests/test_act06_offline.py	tests/test_offline_operations.py
+R100	tests/test_act06_visitas_migration.py	tests/test_visit_migration.py

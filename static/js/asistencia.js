@@ -9,7 +9,7 @@
         const file = rawFile.includes("/static/") ? rawFile.slice(rawFile.indexOf("/static/") + 1).split(/[?#]/)[0] : rawFile.split(/[?#]/)[0];
         const line = Number(sourceLine || match?.[2] || 0);
         const column = Number(sourceColumn || match?.[3] || 0);
-        console.error("[ACT06] Error de interfaz", {
+        console.error("[Asistencia] Error de interfaz", {
             file, line, column,
             targetId: targetId || undefined,
             operationType: operationType || undefined,

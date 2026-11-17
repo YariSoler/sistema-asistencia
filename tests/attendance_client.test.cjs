@@ -348,7 +348,7 @@ test("confirmación online no se reenvía si ocurre una excepción visual despu�
     assert.deepEqual(ui.retryDelays, [], "una excepción de interfaz no debe iniciar reintentos de red");
     assert.match(ui.elements.get("queue-status").textContent, /Error de aplicación/);
     assert.doesNotMatch(ui.elements.get("queue-status").textContent, /La cola sigue guardada en este dispositivo; no se confirmó el envío/i);
-    const diagnostics = ui.diagnostics.filter(([label]) => label === "[ACT06] Error de interfaz").map(([, details]) => details);
+    const diagnostics = ui.diagnostics.filter(([label]) => label === "[Asistencia] Error de interfaz").map(([, details]) => details);
     const sourceDiagnostic = diagnostics.find((details) => details.targetId === "attendance-result");
     assert.ok(sourceDiagnostic?.line > 0, "el diagnóstico debe señalar el selector y la línea que falló");
     const diagnostic = diagnostics.find((details) => details.localState === "confirmada");
@@ -459,7 +459,7 @@ test("una visita pendiente conserva el UUID y su payload original tras navegar y
 test("si falta un nodo DOM, el diagnóstico identifica selector, archivo y línea sin datos personales", () => {
     const ui = createHarness({ missingIds: ["attendance-result"], allowInitFailure: true });
     assert.match(ui.initError.message, /contrato DOM requerido/);
-    const diagnostic = ui.diagnostics.find(([label]) => label === "[ACT06] Error de interfaz");
+    const diagnostic = ui.diagnostics.find(([label]) => label === "[Asistencia] Error de interfaz");
     assert.ok(diagnostic, "debe quedar un diagnóstico estructurado");
     const details = diagnostic[1];
     assert.equal(details.targetId, "attendance-result");
@@ -595,7 +595,7 @@ test("visita solo coordinador registra proyecto, GPS opcional e identificador es
 });
 
 test("un HTTP 503 al guardar visita se muestra como fallo del servidor, no como falta de internet", async () => {
-    const ui = createHarness({ qrScanner: {}, visitRegisterResponse: response(503, { error: "No se encontró la función RPC ACT06." }) });
+    const ui = createHarness({ qrScanner: {}, visitRegisterResponse: response(503, { error: "No se encontró la función RPC de visitas." }) });
     await new Promise((resolve) => setTimeout(resolve, 0));
     await prepareVisit(ui, "Obra pendiente de migración");
     ui.elements.get("visit-coordinator-id-form").values = { identificacion: "123456" };

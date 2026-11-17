@@ -1,4 +1,24 @@
+# Entornos virtuales locales
 venv/
+.venv/
+
+# Configuración y credenciales locales
 .env
+.env.*
+!.env.example
+secrets/
+
+# Cachés y artefactos generados por Python y pytest
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
+
+# Temporales locales de pip y comprobaciones
+.pip-tmp/
+pip-tmp/
+pip-temp-check/
+permission-probe/
+/pip-log.txt
+/write-check.tmp
+/*.tmp
+/*.temp
